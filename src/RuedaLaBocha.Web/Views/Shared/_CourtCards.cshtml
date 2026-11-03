@@ -10,7 +10,7 @@ else
         {
             <article class="court-card">
                 <div class="court-art"><img src="~/images/football-pitch.svg" alt="" loading="lazy" width="800" height="560" /><span>FÚTBOL 5</span></div>
-                <div class="court-card-body"><h3>@court.Name</h3><p class="court-description">@(string.IsNullOrWhiteSpace(court.Description) ? "Cancha de fútbol 5 del complejo." : court.Description)</p><partial name="_CourtPolicy" /></div>
+                <div class="court-card-body"><h3>@court.Name</h3><p class="court-description">@(string.IsNullOrWhiteSpace(court.Description) ? "Cancha de fútbol 5 del complejo." : court.Description)</p><partial name="_CourtPolicy" /><a class="btn btn-outline-primary" asp-controller="Availability" asp-action="Index" asp-route-courtId="@court.Id" aria-label="Consultar disponibilidad de @court.Name">Consultar disponibilidad</a></div>
             </article>
         }
     </div>

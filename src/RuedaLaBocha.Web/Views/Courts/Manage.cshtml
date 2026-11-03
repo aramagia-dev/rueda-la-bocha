@@ -23,6 +23,7 @@ else
                     <th scope="row">@court.Name</th><td class="description-cell">@court.Description</td><td><span class="status-badge @(court.IsActive ? "status-active" : "status-inactive")">@(court.IsActive ? "Activa" : "Inactiva")</span></td>
                     <td><div class="table-actions">
                         <a class="btn btn-sm btn-outline-primary" asp-action="Edit" asp-route-id="@court.Id" aria-label="Editar @court.Name">Editar</a>
+                        <a class="btn btn-sm btn-outline-primary" asp-controller="Availability" asp-action="Manage" asp-route-courtId="@court.Id" aria-label="Configurar horarios de @court.Name">Horarios</a>
                         @if (court.IsActive)
                         {
                             <form asp-action="Deactivate" asp-route-id="@court.Id" method="post"><button class="btn btn-sm btn-outline-danger" type="submit" aria-label="Desactivar @court.Name">Desactivar</button></form>

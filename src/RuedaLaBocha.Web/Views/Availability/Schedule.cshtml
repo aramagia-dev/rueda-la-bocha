@@ -1,0 +1,21 @@
+@using System.Globalization
+@model ScheduleForm
+@{
+    var court = (Court)ViewData["Court"]!;
+    ViewData["Title"] = "Configurar horario";
+    var spanish = CultureInfo.GetCultureInfo("es-AR");
+}
+<div class="page-heading"><p class="eyebrow">ADMINISTRACIÓN</p><h1>Configurar horario</h1><p class="text-muted">@court.Name · El intervalo se repite cada semana y no puede cruzar la medianoche.</p></div>
+<form method="post" class="management-panel p-4" asp-route-courtId="@court.Id" asp-route-id="@ViewData["RuleId"]">
+    <div asp-validation-summary="All" class="text-danger" role="alert"></div>
+    <div class="mb-3"><label asp-for="DayOfWeek" class="form-label"></label><select asp-for="DayOfWeek" class="form-select" required>
+        <option value="">Selecciona un día</option>
+        @foreach (var day in new[] { DayOfWeek.Monday, DayOfWeek.Tuesday, DayOfWeek.Wednesday, DayOfWeek.Thursday, DayOfWeek.Friday, DayOfWeek.Saturday, DayOfWeek.Sunday })
+        { <option value="@((int)day)">@spanish.DateTimeFormat.GetDayName(day)</option> }
+    </select><span asp-validation-for="DayOfWeek" class="text-danger"></span></div>
+    <div class="mb-3"><label asp-for="StartTime" class="form-label"></label><input asp-for="StartTime" type="time" asp-format="{0:HH:mm}" step="60" class="form-control" required /><span asp-validation-for="StartTime" class="text-danger"></span></div>
+    <div class="mb-3"><label asp-for="EndTime" class="form-label"></label><input asp-for="EndTime" type="time" asp-format="{0:HH:mm}" step="60" class="form-control" required /><span asp-validation-for="EndTime" class="text-danger"></span></div>
+    <p class="text-muted">Se generan solo turnos completos de @BookingPolicy.DurationMinutes minutos. Puedes agregar varios intervalos sin superposición para el mismo día.</p>
+    <button class="btn btn-primary" type="submit">Guardar horario</button>
+    <a class="btn btn-outline-secondary" asp-action="Manage" asp-route-courtId="@court.Id">Cancelar</a>
+</form>

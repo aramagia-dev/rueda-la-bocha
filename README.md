@@ -25,13 +25,25 @@ dotnet build --no-restore
 - `/Courts/Manage` is restricted to the `Administrator` role. Administrators can create, edit, deactivate and reactivate courts. Deactivation hides the court from the public catalog without deleting its record.
 - Names are required (maximum 100 characters); descriptions are optional (maximum 1,000 characters). All changes use protected POST forms with server-side validation and antiforgery checks.
 - SQLite database stored locally as `src/RuedaLaBocha.Web/app.db`; database files are not versioned.
-- Reservations, availability and Mercado Pago are not implemented. Never put payment credentials in source control.
+- Reservations and Mercado Pago are not implemented. Never put payment credentials in source control.
+
+## Schedules and availability
+
+1. Apply migrations using the local setup commands above; normal web startup does not migrate the database.
+2. Sign in as an administrator, open `/Courts/Manage`, and choose **Horarios** for a court.
+3. Under **Horario semanal**, add, edit or delete opening intervals by weekday. Multiple non-overlapping intervals are allowed; end must follow start within the same day. Only complete 60-minute slots are generated, starting at each interval's opening time.
+4. Under **Bloqueos por fecha**, add, edit or delete a dated time block. Any slot overlapping that block is excluded, but other dates are unaffected. Adjacent intervals are allowed; overlapping schedules or blocks are rejected without saving changes.
+5. Open `/Courts` and choose **Consultar disponibilidad**, then select a date. The public page shows eligible start/end times, or an empty state if there are none. Inactive courts are not publicly accessible; their saved schedules remain available to administrators.
+
+Schedules, blocks and selected dates use the venue's local wall-clock time, with no timezone conversion. Weekly schedules are stored in `CourtSchedules`, dated blocks in `CourtClosures`; generated slots are computed, not duplicated as database rows. All mutations require the existing administrator role and antiforgery token. Record IDs must belong to the selected court.
+
+This module provides availability **from opening hours and blocks only**, not reservation confirmation. The future reservation module must also exclude reserved slots and protect against duplicate bookings; it can reuse `CourtAvailabilityService` without inventing another duration policy. A block changes displayed availability; it does not cancel reservations.
 
 ### Luciano's interface
 
 The home page, public court catalog and administration screens use a responsive green/cream football theme inspired by the supplied prototype. Home previews up to three real active courts in catalog order; an empty complex shows an honest empty state, not sample courts. The catalog shows all active courts. Pitch illustrations are decorative, not court photographs.
 
-User-facing court copy and shared navigation are in Spanish. Identity's built-in account pages retain their existing content and behavior; their full localization belongs to the account module. Navigation links, mobile menu, skip link and form actions lead to existing features only. Availability search, reservations and payment controls are deliberately absent.
+User-facing court copy and shared navigation are in Spanish. Identity's built-in account pages retain their existing content and behavior; their full localization belongs to the account module. Navigation links, mobile menu, skip link and form actions lead to existing features only. Availability is linked from court cards; reservations and payment controls are deliberately absent.
 
 ## Provision the first administrator
 
@@ -80,4 +92,4 @@ dotnet test
 
 If a running development instance locks build outputs on Windows, leave it running and use `dotnet test --configuration Release` instead. The provisioning test uses the same build configuration as the test assembly.
 
-Integration tests use real Identity cookies and antiforgery forms with isolated SQLite databases under the system temporary directory. They exercise public consultation, administrator CRUD, rejected requests without data changes, role overposting, provisioning, Spanish interface content, real court previews, shared account navigation and POST logout. The local application database is never used by tests. Reservation/payment behavior and production security deployment are outside this stage.
+Integration tests use real Identity cookies and antiforgery forms with isolated SQLite databases under the system temporary directory. They exercise public consultation, administrator CRUD, rejected requests without data changes, role overposting, provisioning, Spanish interface content, real court previews, shared account navigation and POST logout. Availability tests cover persisted schedule/block CRUD, malformed input, overlap rejection, cross-court IDs, unauthorized/forged mutations, full-slot boundaries and public filtering by date and active status. The local application database is never used by tests. Reservation/payment behavior and production security deployment are outside this stage.
