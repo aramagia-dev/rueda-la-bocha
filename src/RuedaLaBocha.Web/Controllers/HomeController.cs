@@ -1,14 +1,15 @@
 using System.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
 using RuedaLaBocha.Web.Models;
+using RuedaLaBocha.Web.Services;
 
 namespace RuedaLaBocha.Web.Controllers;
 
-public class HomeController : Controller
+public class HomeController(CourtService courts) : Controller
 {
-    public IActionResult Index()
+    public async Task<IActionResult> Index()
     {
-        return View();
+        return View((await courts.ListAsync()).Take(3).ToArray());
     }
 
     public IActionResult Privacy()

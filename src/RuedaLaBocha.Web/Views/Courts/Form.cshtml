@@ -1,0 +1,27 @@
+@model CourtForm
+@{
+    var editing = ViewContext.RouteData.Values["action"]?.ToString() == "Edit";
+    ViewData["Title"] = editing ? "Editar cancha" : "Nueva cancha";
+}
+<div class="page-heading"><a class="text-link" asp-action="Manage"><span aria-hidden="true">←</span> Volver a administrar canchas</a><p class="eyebrow mt-4">ADMINISTRACIÓN</p><h1>@ViewData["Title"]</h1><partial name="_CourtPolicy" /></div>
+<div class="court-form-panel">
+    <form asp-action="@(editing ? "Edit" : "Create")" asp-route-id="@ViewContext.RouteData.Values["id"]" method="post">
+        <div asp-validation-summary="ModelOnly" class="text-danger" role="alert"></div>
+        <div class="mb-4">
+            <label asp-for="Name" class="form-label"></label><span class="field-note"> (obligatorio)</span>
+            <input asp-for="Name" class="form-control" maxlength="100" autocomplete="off" aria-describedby="name-error" />
+            <span id="name-error" asp-validation-for="Name" class="text-danger"></span>
+        </div>
+        <div class="mb-4">
+            <label asp-for="Description" class="form-label"></label><span class="field-note"> (opcional)</span>
+            <textarea asp-for="Description" class="form-control" maxlength="1000" rows="4" aria-describedby="description-hint description-error"></textarea>
+            <p id="description-hint" class="field-note mt-2 mb-0">Describe la cancha en un máximo de 1000 caracteres.</p><span id="description-error" asp-validation-for="Description" class="text-danger"></span>
+        </div>
+        <div class="form-check mb-2"><input asp-for="IsActive" class="form-check-input" aria-describedby="active-hint" /><label asp-for="IsActive" class="form-check-label"></label></div>
+        <p id="active-hint" class="field-note">Solo las canchas activas aparecen en el catálogo público.</p>
+        <div class="form-actions"><button type="submit" class="btn btn-primary">@(editing ? "Guardar cambios" : "Guardar cancha")</button><a asp-action="Manage" class="btn btn-outline-secondary">Cancelar</a></div>
+    </form>
+</div>
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

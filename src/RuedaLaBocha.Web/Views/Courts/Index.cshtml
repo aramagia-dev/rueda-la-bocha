@@ -1,0 +1,6 @@
+@model IReadOnlyList<Court>
+@{
+    ViewData["Title"] = "Canchas";
+}
+<div class="page-heading"><p class="eyebrow">EL COMPLEJO</p><h1>Nuestras canchas de fútbol 5</h1><p class="text-muted">Elige dónde quieres jugar. Todas las canchas comparten el mismo precio y duración por turno.</p><partial name="_CourtPolicy" /></div>
+<section aria-labelledby="catalog-title"><h2 id="catalog-title" class="visually-hidden">Canchas del complejo</h2><partial name="_CourtCards" model="Model" /></section>
