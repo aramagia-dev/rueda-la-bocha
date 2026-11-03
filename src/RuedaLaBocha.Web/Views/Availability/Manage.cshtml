@@ -1,0 +1,53 @@
+@using System.Globalization
+@model CourtHoursViewModel
+@{
+    ViewData["Title"] = "Horarios y bloqueos";
+    var spanish = CultureInfo.GetCultureInfo("es-AR");
+}
+<div class="page-heading">
+    <p class="eyebrow">ADMINISTRACIÓN</p><h1>Horarios y bloqueos</h1>
+    <p class="text-muted">@Model.Court.Name · Horarios locales del complejo. Los turnos duran @BookingPolicy.DurationMinutes minutos.</p>
+    @if (!Model.Court.IsActive) { <p class="alert alert-warning">La cancha está inactiva: puedes configurar horarios, pero no se publica su disponibilidad.</p> }
+    <a asp-controller="Courts" asp-action="Manage">Volver a administrar canchas</a>
+</div>
+<section class="mb-5" aria-labelledby="weekly-title">
+    <div class="section-heading"><h2 id="weekly-title">Horario semanal</h2><a class="btn btn-primary" asp-action="Schedule" asp-route-courtId="@Model.Court.Id">Agregar horario</a></div>
+    @if (Model.Schedules.Count == 0) { <p class="empty-state">No hay horarios configurados. Agrega al menos un intervalo para generar turnos.</p> }
+    else
+    {
+        <div class="management-panel table-responsive" tabindex="0" role="region" aria-label="Horarios semanales">
+        <table class="table court-table align-middle mb-0">
+            <caption class="visually-hidden">Intervalos semanales de @Model.Court.Name</caption>
+            <thead><tr><th scope="col">Día</th><th scope="col">Apertura</th><th scope="col">Cierre</th><th scope="col">Acciones</th></tr></thead>
+            <tbody>@foreach (var item in Model.Schedules)
+            {
+                var day = spanish.DateTimeFormat.GetDayName(item.DayOfWeek);
+                <tr><th scope="row">@day</th><td>@item.StartTime.ToString("HH:mm")</td><td>@item.EndTime.ToString("HH:mm")</td><td><div class="table-actions">
+                    <a class="btn btn-sm btn-outline-primary" asp-action="Schedule" asp-route-courtId="@Model.Court.Id" asp-route-id="@item.Id" aria-label="Editar horario del @day a las @item.StartTime.ToString("HH:mm")">Editar</a>
+                    <form asp-action="DeleteSchedule" asp-route-courtId="@Model.Court.Id" asp-route-id="@item.Id" method="post"><button class="btn btn-sm btn-outline-danger" type="submit" aria-label="Eliminar horario del @day a las @item.StartTime.ToString("HH:mm")">Eliminar</button></form>
+                </div></td></tr>
+            }</tbody>
+        </table></div>
+    }
+</section>
+<section aria-labelledby="closures-title">
+    <div class="section-heading"><h2 id="closures-title">Bloqueos por fecha</h2><a class="btn btn-primary" asp-action="Closure" asp-route-courtId="@Model.Court.Id">Agregar bloqueo</a></div>
+    <p class="text-muted">Un bloqueo excluye todos los turnos que se cruzan con ese intervalo, solo en la fecha elegida.</p>
+    @if (Model.Closures.Count == 0) { <p class="empty-state">No hay bloqueos registrados.</p> }
+    else
+    {
+        <div class="management-panel table-responsive" tabindex="0" role="region" aria-label="Bloqueos por fecha">
+        <table class="table court-table align-middle mb-0">
+            <caption class="visually-hidden">Bloqueos de @Model.Court.Name</caption>
+            <thead><tr><th scope="col">Fecha</th><th scope="col">Desde</th><th scope="col">Hasta</th><th scope="col">Acciones</th></tr></thead>
+            <tbody>@foreach (var item in Model.Closures)
+            {
+                <tr><th scope="row">@item.Date.ToString("dd/MM/yyyy")</th><td>@item.StartTime.ToString("HH:mm")</td><td>@item.EndTime.ToString("HH:mm")</td><td><div class="table-actions">
+                    <a class="btn btn-sm btn-outline-primary" asp-action="Closure" asp-route-courtId="@Model.Court.Id" asp-route-id="@item.Id" aria-label="Editar bloqueo del @item.Date.ToString("dd/MM/yyyy") a las @item.StartTime.ToString("HH:mm")">Editar</a>
+                    <form asp-action="DeleteClosure" asp-route-courtId="@Model.Court.Id" asp-route-id="@item.Id" method="post"><button class="btn btn-sm btn-outline-danger" type="submit" aria-label="Eliminar bloqueo del @item.Date.ToString("dd/MM/yyyy") a las @item.StartTime.ToString("HH:mm")">Eliminar</button></form>
+                </div></td></tr>
+            }</tbody>
+        </table></div>
+    }
+</section>
+@if (Model.Court.IsActive) { <a class="btn btn-outline-primary mt-4" asp-action="Index" asp-route-courtId="@Model.Court.Id">Consultar disponibilidad pública</a> }

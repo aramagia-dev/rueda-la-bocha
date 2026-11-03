@@ -1,0 +1,21 @@
+@model CourtAvailabilityViewModel
+@{ ViewData["Title"] = "Consultar disponibilidad"; }
+<div class="page-heading"><p class="eyebrow">DISPONIBILIDAD</p><h1>@Model.Court.Name</h1><p class="text-muted">Consulta turnos de @BookingPolicy.DurationMinutes minutos según los horarios y bloqueos del complejo.</p><partial name="_CourtPolicy" /></div>
+<form method="get" asp-action="Index" class="management-panel p-4 mb-4">
+    <input type="hidden" name="courtId" value="@Model.Court.Id" />
+    <label for="date" class="form-label">Fecha</label>
+    <input id="date" name="date" type="date" value="@Model.Date.ToString("yyyy-MM-dd")" class="form-control mb-3" required />
+    <button class="btn btn-primary" type="submit">Consultar disponibilidad</button>
+</form>
+<section aria-labelledby="slots-title">
+    <h2 id="slots-title">Turnos del @Model.Date.ToString("dd/MM/yyyy")</h2>
+    @if (Model.StartTimes.Count == 0)
+    { <p class="empty-state">No hay turnos disponibles para esta fecha. Prueba con otro día.</p> }
+    else
+    {
+        <ul class="list-group mb-3">@foreach (var start in Model.StartTimes)
+        { <li class="list-group-item">@start.ToString("HH:mm") - @start.AddMinutes(BookingPolicy.DurationMinutes).ToString("HH:mm")</li> }</ul>
+    }
+    <p class="text-muted">Horarios locales del complejo. Esta consulta no confirma una reserva; la integración con reservas se realiza en su módulo.</p>
+</section>
+<a asp-controller="Courts" asp-action="Index">Volver a las canchas</a>

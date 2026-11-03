@@ -26,6 +26,8 @@ builder.Services.AddDefaultIdentity<IdentityUser>(options => options.SignIn.Requ
     .AddEntityFrameworkStores<ApplicationDbContext>();
 builder.Services.AddControllersWithViews();
 builder.Services.AddScoped<CourtService>();
+builder.Services.AddScoped<CourtScheduleService>();
+builder.Services.AddScoped<CourtAvailabilityService>();
 builder.Services.AddScoped<AdminProvisioner>();
 
 var app = builder.Build();
