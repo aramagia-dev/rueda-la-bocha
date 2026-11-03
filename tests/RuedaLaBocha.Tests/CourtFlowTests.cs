@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Net;
+using System.Reflection;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Identity;
@@ -14,6 +15,7 @@ using RuedaLaBocha.Web.Data;
 
 namespace RuedaLaBocha.Tests;
 
+[Collection("Court integration")]
 public class CourtFlowTests
 {
     [Fact]
@@ -27,8 +29,8 @@ public class CourtFlowTests
         using var guest = app.Client();
         var catalog = await guest.GetStringAsync("/Courts");
         Assert.Contains("Court One", catalog);
-        Assert.Contains("Football 5", catalog);
-        Assert.Contains("60 minutes", catalog);
+        Assert.Contains("Fútbol 5", WebUtility.HtmlDecode(catalog));
+        Assert.Contains("60 minutos", catalog);
         Assert.Contains("40.000", catalog);
         Assert.Contains("ARS", catalog);
         Assert.DoesNotContain("/Courts/Edit", catalog);
@@ -290,8 +292,9 @@ internal sealed class TestApp : WebApplicationFactory<HomeController>
     internal async Task<int> Bootstrap(string email, string password)
     {
         var root = Services.GetRequiredService<IWebHostEnvironment>().ContentRootPath;
+        var configuration = typeof(TestApp).Assembly.GetCustomAttribute<AssemblyConfigurationAttribute>()!.Configuration;
         var start = new ProcessStartInfo("dotnet") { WorkingDirectory = root, RedirectStandardOutput = true, RedirectStandardError = true };
-        foreach (var arg in new[] { "run", "--no-build", "--no-launch-profile", "--project", Path.Combine(root, "RuedaLaBocha.Web.csproj"), "--", "--bootstrap-admin" })
+        foreach (var arg in new[] { "run", "--configuration", configuration, "--no-build", "--no-launch-profile", "--project", Path.Combine(root, "RuedaLaBocha.Web.csproj"), "--", "--bootstrap-admin" })
             start.ArgumentList.Add(arg);
         start.Environment["ASPNETCORE_ENVIRONMENT"] = "Testing";
         start.Environment["ConnectionStrings__DefaultConnection"] = $"Data Source={Database}";

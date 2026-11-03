@@ -27,11 +27,19 @@ dotnet build --no-restore
 - SQLite database stored locally as `src/RuedaLaBocha.Web/app.db`; database files are not versioned.
 - Reservations, availability and Mercado Pago are not implemented. Never put payment credentials in source control.
 
+### Luciano's interface
+
+The home page, public court catalog and administration screens use a responsive green/cream football theme inspired by the supplied prototype. Home previews up to three real active courts in catalog order; an empty complex shows an honest empty state, not sample courts. The catalog shows all active courts. Pitch illustrations are decorative, not court photographs.
+
+User-facing court copy and shared navigation are in Spanish. Identity's built-in account pages retain their existing content and behavior; their full localization belongs to the account module. Navigation links, mobile menu, skip link and form actions lead to existing features only. Availability search, reservations and payment controls are deliberately absent.
+
 ## Provision the first administrator
 
 Run migrations first. Provisioning is an explicit local operation, never a public registration option. Use a **new email**: existing accounts are never promoted, confirmed or reset by this command. Repeating provisioning for the same email fails without changing the account.
 
 In Visual Studio, right-click `RuedaLaBocha.Web` and select **Manage User Secrets**. Add the following keys to that private JSON file using your own email and a strong unique password; do not put real values in this README, appsettings or GitHub:
+
+Identity requires at least six characters, including uppercase, lowercase, a digit and a non-alphanumeric symbol. Prefer a unique password of at least 12 characters. Provisioning deliberately reports a generic failure; check these requirements and use a new account before retrying.
 
 ```json
 {
@@ -70,4 +78,6 @@ Controllers and views handle presentation; `Services/CourtService.cs` handles co
 dotnet test
 ```
 
-Integration tests use real Identity cookies and antiforgery forms with isolated SQLite databases under the system temporary directory. They exercise public consultation, administrator CRUD, rejected requests without data changes, role overposting and the provisioning command. The local application database is never used by tests. Reservation/payment behavior and production security deployment are outside this stage.
+If a running development instance locks build outputs on Windows, leave it running and use `dotnet test --configuration Release` instead. The provisioning test uses the same build configuration as the test assembly.
+
+Integration tests use real Identity cookies and antiforgery forms with isolated SQLite databases under the system temporary directory. They exercise public consultation, administrator CRUD, rejected requests without data changes, role overposting, provisioning, Spanish interface content, real court previews, shared account navigation and POST logout. The local application database is never used by tests. Reservation/payment behavior and production security deployment are outside this stage.
