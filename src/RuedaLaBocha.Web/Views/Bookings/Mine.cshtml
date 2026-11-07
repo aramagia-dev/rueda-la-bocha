@@ -1,0 +1,33 @@
+@model List<Booking>
+@{
+    ViewData["Title"] = "Mis reservas";
+}
+<div class="page-heading"><p class="eyebrow">RESERVAS</p><h1>Mis reservas</h1><p class="text-muted">Acá ves tus reservas de fútbol 5 (@BookingPolicy.PriceDisplay por turno de @BookingPolicy.DurationMinutes minutos).</p></div>
+@if (TempData["BookingMessage"] is string message)
+{
+    <p class="alert alert-success">@message</p>
+}
+@if (Model.Count == 0)
+{
+    <p class="empty-state">Todavía no tenés reservas. Elegí un horario disponible y confirmá la tuya.</p>
+}
+else
+{
+    <ul class="list-group mb-3">
+        @foreach (var booking in Model)
+        {
+            <li class="list-group-item">
+                <strong>@booking.Date.ToString("dd/MM/yyyy") @booking.StartTime.ToString("HH:mm") - @booking.EndTime.ToString("HH:mm")</strong>
+                <span class="text-muted">@booking.Court.Name · @BookingPolicy.PriceDisplay · @booking.Status</span>
+                <a asp-action="Detail" asp-route-id="@booking.Id">Ver detalle</a>
+                @if (booking.Status == BookingStatus.Active)
+                {
+                    <form method="post" asp-action="Cancel" asp-route-id="@booking.Id" class="d-inline">
+                        <button class="btn btn-link" type="submit">Cancelar reserva</button>
+                    </form>
+                }
+            </li>
+        }
+    </ul>
+}
+<a asp-action="Create">Reservar otra cancha</a>
