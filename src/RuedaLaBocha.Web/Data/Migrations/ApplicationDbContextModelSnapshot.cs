@@ -213,6 +213,55 @@ namespace RuedaLaBocha.Web.Data.Migrations
                     b.ToTable("AspNetUserTokens", (string)null);
                 });
 
+            modelBuilder.Entity("RuedaLaBocha.Web.Models.Booking", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("CancelledAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("CourtId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateOnly>("Date")
+                        .HasColumnType("TEXT");
+
+                    b.Property<TimeOnly>("EndTime")
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("PriceArs")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<TimeOnly>("StartTime")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Date", "Status");
+
+                    b.HasIndex("CourtId", "Date", "StartTime")
+                        .IsUnique()
+                        .HasFilter("Status = 0");
+
+                    b.HasIndex("UserId", "Date", "Status");
+
+                    b.ToTable("Bookings");
+                });
+
             modelBuilder.Entity("RuedaLaBocha.Web.Models.Court", b =>
                 {
                     b.Property<int>("Id")
@@ -243,11 +292,11 @@ namespace RuedaLaBocha.Web.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
-                    b.Property<DateOnly>("Date")
-                        .HasColumnType("TEXT");
-
                     b.Property<int>("CourtId")
                         .HasColumnType("INTEGER");
+
+                    b.Property<DateOnly>("Date")
+                        .HasColumnType("TEXT");
 
                     b.Property<TimeOnly>("EndTime")
                         .HasColumnType("TEXT");
@@ -336,6 +385,23 @@ namespace RuedaLaBocha.Web.Data.Migrations
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("RuedaLaBocha.Web.Models.Booking", b =>
+                {
+                    b.HasOne("RuedaLaBocha.Web.Models.Court", "Court")
+                        .WithMany()
+                        .HasForeignKey("CourtId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Microsoft.AspNetCore.Identity.IdentityUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Court");
                 });
 
             modelBuilder.Entity("RuedaLaBocha.Web.Models.CourtClosure", b =>

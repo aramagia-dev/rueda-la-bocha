@@ -22,6 +22,12 @@ public sealed class CourtAvailabilityService(ApplicationDbContext db)
             .Where(closure => closure.CourtId == courtId && closure.Date == date)
             .ToListAsync();
 
+        var taken = await db.Bookings.AsNoTracking()
+            .Where(b => b.CourtId == courtId && b.Date == date && b.Status == BookingStatus.Active)
+            .Select(b => b.StartTime)
+            .ToListAsync();
+        var takenSet = new HashSet<TimeOnly>(taken);
+
         var duration = TimeSpan.FromMinutes(BookingPolicy.DurationMinutes);
         var slots = new List<TimeOnly>();
         foreach (var schedule in schedules)
@@ -33,7 +39,7 @@ public sealed class CourtAvailabilityService(ApplicationDbContext db)
                 var slotStart = TimeOnly.FromTimeSpan(start);
                 var slotEnd = TimeOnly.FromTimeSpan(end);
                 var blocked = closures.Any(closure => closure.StartTime < slotEnd && closure.EndTime > slotStart);
-                if (!blocked) slots.Add(slotStart);
+                if (!blocked && !takenSet.Contains(slotStart)) slots.Add(slotStart);
             }
         }
 
