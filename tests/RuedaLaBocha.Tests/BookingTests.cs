@@ -20,7 +20,7 @@ public sealed class BookingTests
             CreatedAtUtc = DateTime.UtcNow,
         };
         Assert.Equal(TimeSpan.FromMinutes(BookingPolicy.DurationMinutes), booking.EndTime - booking.StartTime);
-        Assert.Equal(40_000m, booking.PriceArs);
+        Assert.Equal(BookingPolicy.PriceArs, booking.PriceArs);
         Assert.Null(booking.CancelledAtUtc);
     }
 }
