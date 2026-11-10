@@ -1,0 +1,26 @@
+@{
+    ViewData["Title"] = "Pay deposit";
+}
+
+<h1>Pay deposit</h1>
+
+@if (TempData["Error"] is string error)
+{
+    <div class="alert alert-danger" role="alert">@error</div>
+}
+
+<p class="text-muted">Enter the reservation reference and the deposit amount to create a Padi payment link.</p>
+
+<form asp-action="Create" method="post" class="col-md-6">
+    <div class="mb-3">
+        <label for="reservaId" class="form-label">Reservation reference</label>
+        <input name="reservaId" id="reservaId" class="form-control" required maxlength="64" />
+    </div>
+    <div class="mb-3">
+        <label for="amount" class="form-label">Deposit amount (ARS, minimum 10,000)</label>
+        <input name="amount" id="amount" type="number" min="10000" step="0.01" class="form-control" required />
+        <div class="form-text">The minimum deposit (seña) is ARS 10,000.</div>
+    </div>
+    @* One link per click: Padi has no idempotency key, so double-submitting mints two links. *@
+    <button type="submit" class="btn btn-primary" onclick="this.disabled=true;this.form.submit();">Continue to Padi</button>
+</form>
