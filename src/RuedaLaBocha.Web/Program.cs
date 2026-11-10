@@ -28,6 +28,7 @@ builder.Services.AddControllersWithViews();
 builder.Services.AddScoped<CourtService>();
 builder.Services.AddScoped<CourtScheduleService>();
 builder.Services.AddScoped<CourtAvailabilityService>();
+builder.Services.AddScoped<BookingService>();
 builder.Services.AddScoped<AdminProvisioner>();
 
 // Padi (friend's payment API, https://padi-api.mintlify.site/). The API key is

@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
+﻿using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using RuedaLaBocha.Web.Models;
 
@@ -14,11 +15,27 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
     public DbSet<Payment> Payments => Set<Payment>();
 
+    public DbSet<Booking> Bookings => Set<Booking>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
         modelBuilder.Entity<CourtSchedule>().HasIndex(schedule => new { schedule.CourtId, schedule.DayOfWeek });
         modelBuilder.Entity<CourtClosure>().HasIndex(closure => new { closure.CourtId, closure.Date });
+        modelBuilder.Entity<Booking>(b =>
+        {
+            b.Property(x => x.UserId).IsRequired().HasMaxLength(450);
+            b.Property(x => x.PriceArs).HasColumnType("decimal(18,2)").HasPrecision(18, 2);
+            b.HasOne(x => x.Court).WithMany().HasForeignKey(x => x.CourtId)
+                .OnDelete(DeleteBehavior.Restrict);
+            b.HasOne<IdentityUser>().WithMany().HasForeignKey(x => x.UserId)
+                .OnDelete(DeleteBehavior.Restrict);
+            b.HasIndex(x => new { x.CourtId, x.Date, x.StartTime })
+                .IsUnique()
+                .HasFilter("Status = 0");
+            b.HasIndex(x => new { x.UserId, x.Date, x.Status });
+            b.HasIndex(x => new { x.Date, x.Status });
+        });
 
         modelBuilder.Entity<Payment>(entity =>
         {
