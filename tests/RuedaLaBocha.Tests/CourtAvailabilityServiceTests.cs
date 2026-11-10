@@ -27,7 +27,7 @@ public sealed class CourtAvailabilityServiceTests
         var differ = db.GetService<IMigrationsModelDiffer>();
         var designTimeRelationalModel = designTimeModel.GetRelationalModel();
         var snapshotChanges = differ.GetDifferences(snapshot.GetRelationalModel(), designTimeRelationalModel);
-        var migrationType = migrations.Migrations["20261103015000_AddCourtAvailability"];
+        var migrationType = migrations.Migrations["20261107001800_AddBookings"];
         var migration = migrations.CreateMigration(migrationType, db.Database.ProviderName!);
         var targetModel = migration.TargetModel;
         if (targetModel is IMutableModel mutableTarget) targetModel = mutableTarget.FinalizeModel();

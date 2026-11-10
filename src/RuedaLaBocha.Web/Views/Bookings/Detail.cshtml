@@ -1,0 +1,19 @@
+@model Booking
+@{
+    ViewData["Title"] = "Detalle de la reserva";
+}
+<div class="page-heading"><p class="eyebrow">RESERVAS</p><h1>Detalle de la reserva</h1></div>
+<dl class="management-panel p-4 mb-4">
+    <dt>Cancha</dt><dd>@Model.Court.Name</dd>
+    <dt>Fecha</dt><dd>@Model.Date.ToString("dd/MM/yyyy")</dd>
+    <dt>Horario</dt><dd>@Model.StartTime.ToString("HH:mm") - @Model.EndTime.ToString("HH:mm")</dd>
+    <dt>Precio</dt><dd>@BookingPolicy.PriceDisplay</dd>
+    <dt>Estado</dt><dd>@Model.Status</dd>
+</dl>
+@if (Model.Status == BookingStatus.Active)
+{
+    <form method="post" asp-action="Cancel" asp-route-id="@Model.Id" class="mb-3">
+        <button class="btn btn-danger" type="submit">Cancelar reserva</button>
+    </form>
+}
+<a asp-action="Mine">Volver a mis reservas</a>

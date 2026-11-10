@@ -1,0 +1,14 @@
+@{
+    ViewData["Title"] = "Reservar cancha";
+}
+<div class="page-heading"><p class="eyebrow">RESERVAS</p><h1>Reservar cancha</h1><p class="text-muted">Elegí la cancha, la fecha y el horario. La reserva dura @BookingPolicy.DurationMinutes minutos (@BookingPolicy.PriceDisplay).</p></div>
+<form method="post" asp-action="Create" class="management-panel p-4 mb-4">
+    <label for="courtId" class="form-label">Cancha</label>
+    <input id="courtId" name="courtId" type="number" min="1" class="form-control mb-3" required />
+    <label for="date" class="form-label">Fecha</label>
+    <input id="date" name="date" type="date" class="form-control mb-3" required />
+    <label for="startTime" class="form-label">Horario de inicio</label>
+    <input id="startTime" name="startTime" type="time" step="3600" class="form-control mb-3" required />
+    <button class="btn btn-primary" type="submit">Confirmar reserva</button>
+</form>
+<a asp-action="Mine">Ver mis reservas</a>
