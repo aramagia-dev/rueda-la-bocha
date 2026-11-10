@@ -12,10 +12,17 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
     public DbSet<CourtClosure> CourtClosures => Set<CourtClosure>();
 
+    public DbSet<Payment> Payments => Set<Payment>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
         modelBuilder.Entity<CourtSchedule>().HasIndex(schedule => new { schedule.CourtId, schedule.DayOfWeek });
         modelBuilder.Entity<CourtClosure>().HasIndex(closure => new { closure.CourtId, closure.Date });
+
+        modelBuilder.Entity<Payment>(entity =>
+        {
+            entity.HasIndex(p => p.PadiPaymentId).IsUnique();
+        });
     }
 }

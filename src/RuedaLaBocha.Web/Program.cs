@@ -30,6 +30,23 @@ builder.Services.AddScoped<CourtScheduleService>();
 builder.Services.AddScoped<CourtAvailabilityService>();
 builder.Services.AddScoped<AdminProvisioner>();
 
+// Padi (friend's payment API, https://padi-api.mintlify.site/). The API key is
+// per-seller (one active at a time) and lives in user-secrets / env vars,
+// never in appsettings.json (key only, empty value) and never in logs:
+//   dotnet user-secrets set "Padi:ApiKey" "<key-from-Integraciones>" --project src/RuedaLaBocha.Web
+// Get the key from the seller account at https://padi-billetera.netlify.app/ Integraciones
+// (it is shown once). Optional overrides:
+//   dotnet user-secrets set "Padi:TtlMinutes" "30" --project src/RuedaLaBocha.Web
+builder.Services.Configure<PadiOptions>(builder.Configuration.GetSection("Padi"));
+builder.Services.AddHttpClient<IPaymentGateway, PadiClient>((sp, client) =>
+{
+    var options = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<PadiOptions>>().Value;
+    client.BaseAddress = new Uri(options.BaseUrl);
+    // Server-side only header; the key is never logged.
+    if (!string.IsNullOrWhiteSpace(options.ApiKey))
+        client.DefaultRequestHeaders.Add("X-Api-Key", options.ApiKey);
+});
+
 var app = builder.Build();
 
 if (bootstrapAdmin)
