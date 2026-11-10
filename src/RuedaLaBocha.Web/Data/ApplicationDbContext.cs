@@ -13,6 +13,8 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
     public DbSet<CourtClosure> CourtClosures => Set<CourtClosure>();
 
+    public DbSet<Payment> Payments => Set<Payment>();
+
     public DbSet<Booking> Bookings => Set<Booking>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -33,6 +35,11 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
                 .HasFilter("Status = 0");
             b.HasIndex(x => new { x.UserId, x.Date, x.Status });
             b.HasIndex(x => new { x.Date, x.Status });
+        });
+
+        modelBuilder.Entity<Payment>(entity =>
+        {
+            entity.HasIndex(p => p.PadiPaymentId).IsUnique();
         });
     }
 }
