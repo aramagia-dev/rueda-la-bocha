@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using RuedaLaBocha.Web.Data;
 using RuedaLaBocha.Web.Security;
 using RuedaLaBocha.Web.Services;
@@ -43,6 +44,17 @@ builder.Services.AddScoped<CourtAvailabilityService>();
 builder.Services.AddScoped<ICourtAvailabilityService>(provider => provider.GetRequiredService<CourtAvailabilityService>());
 builder.Services.AddScoped<BookingService>();
 builder.Services.AddScoped<AdminProvisioner>();
+
+// Padi demo (sandbox): clave solo desde configuración privada
+// (user-secrets "Padi:ApiKey" o variable de entorno Padi__ApiKey).
+builder.Services.Configure<PadiOptions>(builder.Configuration.GetSection("Padi"));
+builder.Services.AddHttpClient<IPadiClient, PadiClient>((sp, http) =>
+{
+    var options = sp.GetRequiredService<IOptions<PadiOptions>>().Value;
+    http.BaseAddress = new Uri(options.BaseUrl.TrimEnd('/') + "/", UriKind.Absolute);
+    if (!string.IsNullOrWhiteSpace(options.ApiKey))
+        http.DefaultRequestHeaders.Add("X-Api-Key", options.ApiKey);
+});
 
 var app = builder.Build();
 

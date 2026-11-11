@@ -1,6 +1,8 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using RuedaLaBocha.Web.Data;
 using RuedaLaBocha.Web.Models;
 using RuedaLaBocha.Web.Security;
 using RuedaLaBocha.Web.Services;
@@ -9,7 +11,7 @@ namespace RuedaLaBocha.Web.Controllers;
 
 [Authorize]
 [Route("Bookings")]
-public class BookingsController(BookingService bookings, CourtService courts, CourtAvailabilityService availability) : Controller
+public class BookingsController(BookingService bookings, CourtService courts, CourtAvailabilityService availability, ApplicationDbContext db) : Controller
 {
     [HttpGet("Create")]
     public async Task<IActionResult> Create(int? courtId, string? date, string? startTime)
@@ -84,6 +86,8 @@ public class BookingsController(BookingService bookings, CourtService courts, Co
             return Content(ex.Message, "text/plain", System.Text.Encoding.UTF8).WithStatus(403);
         }
         if (booking is null) return NotFound();
+        ViewBag.PadiPayment = await db.PadiPayments.AsNoTracking()
+            .FirstOrDefaultAsync(p => p.BookingId == id);
         return View(booking);
     }
 

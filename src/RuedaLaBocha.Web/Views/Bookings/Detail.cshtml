@@ -1,6 +1,16 @@
 @model Booking
 @{
     ViewData["Title"] = "Detalle de la reserva";
+    var padi = ViewBag.PadiPayment as PadiPayment;
+    var estadoPadi = padi?.Status switch
+    {
+        PadiPaymentStatus.Pending => "Pendiente",
+        PadiPaymentStatus.Processing => "En proceso",
+        PadiPaymentStatus.Succeeded => "Aprobado",
+        PadiPaymentStatus.Failed => "Rechazado",
+        PadiPaymentStatus.Cancelled => "Cancelado",
+        _ => null,
+    };
 }
 <div class="page-heading"><p class="eyebrow">RESERVAS</p><h1>Detalle de la reserva</h1></div>
 <dl class="management-panel p-4 mb-4">
@@ -10,6 +20,56 @@
     <dt>Precio</dt><dd>@BookingPolicy.PriceDisplay</dd>
     <dt>Estado</dt><dd>@Model.Status</dd>
 </dl>
+@if (TempData["PadiError"] is string padiError)
+{
+    <p class="alert alert-warning" role="alert">@padiError</p>
+}
+@if (padi?.PadiLinkId is not null)
+{
+    <section class="management-panel p-4 mb-4" aria-label="Pago con Padi (demo)">
+        <h2 class="h5">Pago con Padi (demo)</h2>
+        <p>Importe: ARS @padi.AmountArs.ToString("N0", System.Globalization.CultureInfo.GetCultureInfo("es-AR")) (lo fija la reserva)</p>
+        <p>Estado: <strong data-padi-estado>@estadoPadi</strong></p>
+        @if (padi.Status == PadiPaymentStatus.Succeeded)
+        {
+            <p class="alert alert-success">Pago aprobado. La reserva sigue activa; no se debita nada real (sandbox).</p>
+        }
+        <p><a href="@padi.CheckoutUrl" target="_blank" rel="noopener">Pagar en Padi</a></p>
+        @if (!string.IsNullOrEmpty(padi.QrCodeUrl))
+        {
+            <p><img src="@padi.QrCodeUrl" alt="Código QR para pagar la reserva con Padi" width="200" height="200" /></p>
+        }
+        <form method="get" action="/Bookings/@Model.Id/Padi/Status" data-padi-check class="mb-0">
+            <button class="btn btn-outline-primary" type="submit">Comprobar estado</button>
+        </form>
+    </section>
+    <script>
+    (function () {
+        var form = document.querySelector('[data-padi-check]');
+        if (!form) return;
+        var estado = document.querySelector('[data-padi-estado]');
+        var timer = null;
+        function texto(s) {
+            return { Pending: 'Pendiente', Processing: 'En proceso', Succeeded: 'Aprobado', Failed: 'Rechazado', Cancelled: 'Cancelado' }[s] || s;
+        }
+        function consultar() {
+            fetch(form.action, { headers: { 'Accept': 'application/json' } }).then(function (r) { return r.json(); }).then(function (d) {
+                if (d.approved) { window.location.reload(); return; }
+                if (estado && d.status) estado.textContent = texto(d.status);
+                if ((d.status === 'Pending' || d.status === 'Processing') && !timer) timer = setInterval(consultar, 5000);
+                else if (timer && d.status !== 'Pending' && d.status !== 'Processing') { clearInterval(timer); timer = null; }
+            }).catch(function () {});
+        }
+        form.addEventListener('submit', function (e) { e.preventDefault(); consultar(); });
+    })();
+    </script>
+}
+else if (Model.Status == BookingStatus.Active)
+{
+    <form method="post" asp-controller="PadiPayments" asp-action="Create" asp-route-bookingId="@Model.Id" class="mb-3">
+        <button class="btn btn-primary" type="submit">Pagar con Padi (demo)</button>
+    </form>
+}
 @if (Model.Status == BookingStatus.Active)
 {
     <form method="post" asp-action="Cancel" asp-route-id="@Model.Id" class="mb-3">

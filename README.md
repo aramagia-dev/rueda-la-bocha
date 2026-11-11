@@ -61,14 +61,23 @@ Sin ambas variables (DB exacta `$env:TEMP\opencode\rlb-iso\c3.db` bajo root `$en
 
 ## Notas QA
 
-- Suite: **94/95**; único rojo conocido **E1** (literal `no hay pagos implementados` preservado, `tests/RuedaLaBocha.Tests/E1AgendaTests.cs`).
-- **Sin pagos**: no hay integración Padi/Mercado Pago en esta rama.
+- Suite: **100/101**; único rojo conocido **E1** (literal `no hay pagos implementados` preservado, `tests/RuedaLaBocha.Tests/E1AgendaTests.cs`).
+- **Pagos**: solo demo Padi sandbox (sin dinero real); el snapshot de migraciones apunta a `20261111225033_AddPadiPayments`.
 
-## Padi demo (pendiente, no implementado)
+## Padi demo (sandbox, sin pagos reales)
 
-- Estado: **no implementado** en esta rama; no hay código de pagos ni claves en el repo.
-- Referencia futura (solo lectura, sin copiar secretos): docs del API en `https://padi-api.mintlify.site/` y rama `origin/feature/choni-pagos` (`fe951e2`, demo Padi poll-only, no fusionada).
-- Nunca commitear claves ni `X-Api-Key`; integración real va por user-secrets/gestor de secretos.
+- Estado: **implementado como demo universitaria** en esta rama; no hay claves en el repo.
+- Flujo: en el detalle de una reserva propia activa, botón **Pagar con Padi (demo)** → crea un enlace `SingleUse` en ARS con el importe fijado por el servidor (`Booking.PriceArs`) → muestra enlace (nueva pestaña) + QR → botón **Comprobar estado** consulta Padi por polling (reintenta cada 5 s mientras sigue pendiente). Solo `Succeeded` con mismo enlace + importe + moneda marca aprobado; `Pending`/`Processing` queda pendiente, nunca aprobado. Sin webhooks, sin reembolso, sin auto-confirmar ni cancelar reservas.
+- Configurar la clave sandbox (nunca commitearla, no va en logs ni tests):
+  ```powershell
+  dotnet user-secrets set "Padi:ApiKey" "<tu-clave-sandbox>" --project src/RuedaLaBocha.Web
+  # o por variable de entorno:
+  $env:Padi__ApiKey = "<tu-clave-sandbox>"
+  ```
+  Opcional: `Padi:BaseUrl` (defecto `https://padi.runasp.net`) y `Padi:TtlMinutes` (defecto 30).
+- Probar con cuentas dev `admin@gmail.com` / `user@gmail.com` (ver bootstrap arriba): crear la reserva como `user@gmail.com`, abrir su detalle y pagar con otra cuenta Padi (el checkout muestra “Cobro propio” si usás la misma cuenta vendedora).
+- Referencia (solo lectura, sin copiar secretos): docs del API en `https://padi-api.mintlify.site/` y rama `origin/feature/choni-pagos` (`fe951e2`, demo Padi poll-only, no fusionada; acá se corrigen sus defectos: dueño validado, importe fijado en servidor).
+- Límites conocidos: Padi no deduplica (sin idempotencia): no reintentar crear el enlace; ante timeout la fila queda pendiente y se concilia con Comprobar estado. El listado de pagos recibidos no pagina (máx. 100).
 
 ---
 *Este README en español reemplaza al README inglés base solo en estas ramas (`ramiro/FixFlujo`, `ramiro/Padi`); conciliar al fusionar a `develop`.*
