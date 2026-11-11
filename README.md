@@ -49,3 +49,9 @@ Detalles: `src/RuedaLaBocha.Web/Security/AdminProvisioner.cs` y `tests/RuedaLaBo
 
 - Suite: **94/95**; único rojo conocido **E1** (literal `no hay pagos implementados` preservado, `tests/RuedaLaBocha.Tests/E1AgendaTests.cs`).
 - **Sin pagos**: no hay integración Padi/Mercado Pago en esta rama.
+
+## Padi demo (pendiente, no implementado)
+
+- Estado: **no implementado** en esta rama; no hay código de pagos ni claves en el repo.
+- Referencia futura (solo lectura, sin copiar secretos): docs del API en `https://padi-api.mintlify.site/` y rama `origin/feature/choni-pagos` (demo Padi poll-only, no fusionada).
+- Nunca commitear claves ni `X-Api-Key`; integración real va por user-secrets/gestor de secretos.
