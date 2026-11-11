@@ -1,95 +1,51 @@
-# Rueda la bocha
+# Rueda la Bocha — guía rama `ramiro/FixFlujo`
 
-Football-five court management built with ASP.NET Core MVC (.NET 10), Razor views, Entity Framework Core, SQLite, Bootstrap and ASP.NET Core Identity.
+Guía mínima en español para levantar y probar el flujo de reservas en desarrollo.
 
-## Run locally
+## Requisitos
 
-Install the .NET 10 SDK. From this directory:
+- .NET 10 SDK.
+- Restaurar y compilar desde la raíz del repo:
 
 ```powershell
 dotnet restore
-dotnet tool restore
-dotnet ef database update --project src/RuedaLaBocha.Web
-dotnet run --project src/RuedaLaBocha.Web --launch-profile http
+dotnet build
 ```
 
-Open http://localhost:5097. In Visual Studio with .NET 10 support, open `RuedaLaBocha.slnx` and select `RuedaLaBocha.Web` as the startup project.
+## Arranque (comando exacto)
 
-```powershell
-dotnet build --no-restore
-```
-
-## Court management
-
-- `/Courts` is a public catalog of active courts. All courts are football five, with 60-minute slots at ARS 40,000. These shared rules are in `Models/BookingPolicy.cs`; the price is the full slot cost, not a deposit.
-- `/Courts/Manage` is restricted to the `Administrator` role. Administrators can create, edit, deactivate and reactivate courts. Deactivation hides the court from the public catalog without deleting its record.
-- Names are required (maximum 100 characters); descriptions are optional (maximum 1,000 characters). All changes use protected POST forms with server-side validation and antiforgery checks.
-- SQLite database stored locally as `src/RuedaLaBocha.Web/app.db`; database files are not versioned.
-- Reservations and Mercado Pago are not implemented. Never put payment credentials in source control.
-
-## Schedules and availability
-
-1. Apply migrations using the local setup commands above; normal web startup does not migrate the database.
-2. Sign in as an administrator, open `/Courts/Manage`, and choose **Horarios** for a court.
-3. Under **Horario semanal**, add, edit or delete opening intervals by weekday. Multiple non-overlapping intervals are allowed; end must follow start within the same day. Only complete 60-minute slots are generated, starting at each interval's opening time.
-4. Under **Bloqueos por fecha**, add, edit or delete a dated time block. Any slot overlapping that block is excluded, but other dates are unaffected. Adjacent intervals are allowed; overlapping schedules or blocks are rejected without saving changes.
-5. Open `/Courts` and choose **Consultar disponibilidad**, then select a date. The public page shows eligible start/end times, or an empty state if there are none. Inactive courts are not publicly accessible; their saved schedules remain available to administrators.
-
-Schedules, blocks and selected dates use the venue's local wall-clock time, with no timezone conversion. Weekly schedules are stored in `CourtSchedules`, dated blocks in `CourtClosures`; generated slots are computed, not duplicated as database rows. All mutations require the existing administrator role and antiforgery token. Record IDs must belong to the selected court.
-
-This module provides availability **from opening hours and blocks only**, not reservation confirmation. The future reservation module must also exclude reserved slots and protect against duplicate bookings; it can reuse `CourtAvailabilityService` without inventing another duration policy. A block changes displayed availability; it does not cancel reservations.
-
-### Luciano's interface
-
-The home page, public court catalog and administration screens use a responsive green/cream football theme inspired by the supplied prototype. Home previews up to three real active courts in catalog order; an empty complex shows an honest empty state, not sample courts. The catalog shows all active courts. Pitch illustrations are decorative, not court photographs.
-
-User-facing court copy and shared navigation are in Spanish. Identity's built-in account pages retain their existing content and behavior; their full localization belongs to the account module. Navigation links, mobile menu, skip link and form actions lead to existing features only. Availability is linked from court cards; reservations and payment controls are deliberately absent.
-
-## Provision the first administrator
-
-Run migrations first. Provisioning is an explicit local operation, never a public registration option. Use a **new email**: existing accounts are never promoted, confirmed or reset by this command. Repeating provisioning for the same email fails without changing the account.
-
-In Visual Studio, right-click `RuedaLaBocha.Web` and select **Manage User Secrets**. Add the following keys to that private JSON file using your own email and a strong unique password; do not put real values in this README, appsettings or GitHub:
-
-Identity requires at least six characters, including uppercase, lowercase, a digit and a non-alphanumeric symbol. Prefer a unique password of at least 12 characters. Provisioning deliberately reports a generic failure; check these requirements and use a new account before retrying.
-
-```json
-{
-  "BootstrapAdmin:Email": "your-admin-email@example.com",
-  "BootstrapAdmin:Password": "REPLACE_WITH_A_PRIVATE_STRONG_PASSWORD"
-}
-```
-
-From the solution directory run:
+Servidor de desarrollo en `http://127.0.0.1:5097`:
 
 ```powershell
 $env:ASPNETCORE_ENVIRONMENT = "Development"
-dotnet run --project src/RuedaLaBocha.Web --no-launch-profile -- --bootstrap-admin
+$env:ConnectionStrings__DefaultConnection = "Data Source=$env:TEMP\opencode\rlb-iso\c3.db;Cache=Shared"
+dotnet run --project src/RuedaLaBocha.Web --no-launch-profile --urls http://127.0.0.1:5097
 ```
 
-The command exits after provisioning; it does not start a web server. Exit code 0 means success; nonzero means failure (invalid/missing configuration, existing account or unavailable database). Account, role and role membership are committed in one transaction. The new locally provisioned account is marked confirmed so it can sign in. Existing users are not modified.
+## URLs
 
-**Remove both bootstrap keys from User Secrets after success**, then start the application normally and sign in. Private configuration alone never creates an administrator during normal web startup. For deployment, supply those same keys through your secret manager/environment instead of User Secrets. Do not put a password in command-line arguments or share it in chat.
+- `/` — inicio.
+- `/Reservas` — flujo de reserva por fecha.
 
-Public registration always creates an ordinary, non-administrator account. Identity still requires account confirmation. The template's development confirmation page may show a confirmation link because email delivery is not configured; this does not verify mailbox ownership. Configure real email delivery and review production security before deployment.
+## Flujo Reservas
 
-## Responsibilities
+1. Elegir **fecha** en el calendario (`/Reservas?fecha=AAAA-MM-DD`).
+2. Elegir **cancha** activa con huecos.
+3. Elegir **hora** (slot de 60 min).
+4. **Login**: si no hay sesión, pide login y **preserva la selección** para continuar.
+5. Confirmar → ver en **Mis reservas**; cancelar/reactivar desde ahí.
+6. **Admin**: `/Courts/Manage`, `/Bookings` (listado admin) requieren rol `Administrator`.
 
-| Contributor | Module |
-| --- | --- |
-| Luciano | Courts, features and prices |
-| Ramiro | Schedules, availability and blocked slots |
-| Franco | Users, roles and reservations |
-| Choni | Mercado Pago and payment states |
+## Usuarios de prueba (solo desarrollo, sin secretos reales)
 
-Controllers and views handle presentation; `Services/CourtService.cs` handles court operations; `Data/ApplicationDbContext.cs` handles persistence. Reuse `BookingPolicy` for the shared sport, duration and price in later modules, and `AppRoles.Administrator` for administrator authorization.
+| Rol | Email | Password dev | Cómo obtenerlos |
+| --- | --- | --- | --- |
+| Administrator | `admin@gmail.com` | `admin` | Solo `Development` + DB exacta autorizada, con `dotnet run ... -- --bootstrap-dev-accounts` |
+| Usuario | `user@gmail.com` | `user` | Idem anterior (se crean juntos, idempotente) |
 
-## Verification scope
+Detalles: `src/RuedaLaBocha.Web/Security/AdminProvisioner.cs` y `tests/RuedaLaBocha.Tests/BootstrapDevAccountsTests.cs`. Nunca usar en producción; las cuentas existentes nunca se promueven ni resetean.
 
-```powershell
-dotnet test
-```
+## Notas QA
 
-If a running development instance locks build outputs on Windows, leave it running and use `dotnet test --configuration Release` instead. The provisioning test uses the same build configuration as the test assembly.
-
-Integration tests use real Identity cookies and antiforgery forms with isolated SQLite databases under the system temporary directory. They exercise public consultation, administrator CRUD, rejected requests without data changes, role overposting, provisioning, Spanish interface content, real court previews, shared account navigation and POST logout. Availability tests cover persisted schedule/block CRUD, malformed input, overlap rejection, cross-court IDs, unauthorized/forged mutations, full-slot boundaries and public filtering by date and active status. The local application database is never used by tests. Reservation/payment behavior and production security deployment are outside this stage.
+- Suite: **94/95**; único rojo conocido **E1** (literal `no hay pagos implementados` preservado, `tests/RuedaLaBocha.Tests/E1AgendaTests.cs`).
+- **Sin pagos**: no hay integración Padi/Mercado Pago en esta rama.
