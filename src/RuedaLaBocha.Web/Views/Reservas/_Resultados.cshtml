@@ -1,0 +1,65 @@
+@model ReservaIndexViewModel
+@{
+    var fechaCorta = Model.Selected?.ToString("dd/MM");
+    var primera = Model.Courts.FirstOrDefault();
+    var primerSlot = primera?.Slots.FirstOrDefault();
+}
+<h2 id="canchas-titulo">Canchas disponibles@(Model.Selected.HasValue ? $" para el {Model.Selected.Value:dd/MM/yyyy}" : "")</h2>
+@if (!Model.Selected.HasValue && Model.Message is null)
+{
+    <p class="empty-state">Elegí una fecha del calendario para ver las canchas con turnos libres.</p>
+}
+else if (Model.Message is not null)
+{
+    <p class="empty-state" role="alert">@Model.Message</p>
+    <p class="e1-retry">@if (Model.Selected.HasValue)
+    {
+        <a class="btn btn-primary" href="/Reservas?fecha=@Model.Selected.Value.ToString("yyyy-MM-dd")">Reintentar</a>
+    }
+    <a class="btn btn-outline-primary" href="/Reservas">Elegir otra fecha</a> <a class="text-link" href="#vc-calendario">Volver al calendario <span aria-hidden="true">↑</span></a></p>
+}
+else
+{
+    var ci = 0;
+    <div class="e1-acordeon">
+    @foreach (var item in Model.Courts)
+    {
+        var abierto = ci == 0;
+        var turnos = item.Slots.Count == 1 ? "1 turno libre" : $"{item.Slots.Count} turnos libres";
+        <article class="court-card e1-court">
+            <h3 class="e1-court-title"><button type="button" class="e1-toggle" id="e1-btn-@item.Court.Id" aria-expanded="@(abierto ? "true" : "false")" aria-controls="e1-panel-@item.Court.Id"><span>@item.Court.Name · @turnos · @fechaCorta</span><span class="e1-chevron" aria-hidden="true">+</span></button></h3>
+            <div class="e1-panel@(abierto ? "" : " is-closed")" id="e1-panel-@item.Court.Id" role="region" aria-labelledby="e1-btn-@item.Court.Id">
+                <div class="e1-panel-inner">
+                <p class="court-description">@(string.IsNullOrWhiteSpace(item.Court.Description) ? "Cancha de fútbol 5 del complejo." : item.Court.Description)</p>
+                <partial name="_CourtPolicy" />
+                <fieldset class="slot-group">
+                    <legend>Elegí la hora en @item.Court.Name</legend>
+                    <div class="slot-pills">
+                    @{
+                        var si = 0;
+                        foreach (var slot in item.Slots)
+                        {
+                            var hora = slot.ToString("HH:mm");
+                            var marcado = abierto && si == 0;
+                            <label class="slot"><input type="radio" name="turno" value="@item.Court.Id|@hora" data-cancha="@item.Court.Name" data-hora="@hora"@(marcado ? " checked" : "") /><span>@hora</span></label>
+                            si++;
+                        }
+                    }
+                    </div>
+                </fieldset>
+                </div>
+            </div>
+        </article>
+        ci++;
+    }
+    </div>
+    @if (primera is not null && primerSlot.HasValue)
+    {
+    <section class="e1-resumen" id="e1-resumen" aria-live="polite" aria-atomic="true" aria-labelledby="e1-resumen-titulo">
+        <h2 id="e1-resumen-titulo" class="e1-resumen-titulo">Tu selección</h2>
+        <p id="e1-resumen-texto" data-fecha="@Model.Selected?.ToString("yyyy-MM-dd")" data-fecha-corta="@fechaCorta">@fechaCorta · @primera.Court.Name · @primerSlot.Value.ToString("HH:mm") · se conserva al login</p>
+        <a id="e1-reservar" class="btn btn-primary" href="/Bookings/Create?courtId=@primera.Court.Id&amp;date=@Model.Selected?.ToString("yyyy-MM-dd")&amp;startTime=@primerSlot.Value.ToString("HH:mm")">Reservar turno <span id="e1-reservar-hora">@primerSlot.Value.ToString("HH:mm")</span></a>
+        <p class="management-hint">Te pediremos ingresar antes de confirmar; tu selección se conserva y se vuelve a validar. Sin pagos ni seña en esta versión.</p>
+    </section>
+    }
+}

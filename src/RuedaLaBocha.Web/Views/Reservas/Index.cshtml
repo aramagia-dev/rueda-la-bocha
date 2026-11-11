@@ -1,0 +1,228 @@
+@model ReservaIndexViewModel
+@{
+    ViewData["Title"] = "Reservar por fecha";
+    ViewData["FullWidth"] = true;
+    var todayIso = Model.Today.ToString("yyyy-MM-dd");
+    var selectedIso = Model.Selected?.ToString("yyyy-MM-dd");
+}
+<link rel="stylesheet" href="~/lib/vanilla-calendar-pro/vanilla-calendar-pro.css" asp-append-version="true" />
+<section class="hero" aria-labelledby="hero-title">
+    <div class="container hero-grid">
+        <div class="hero-copy">
+            <p class="eyebrow hero-label"><span aria-hidden="true">●</span> RESERVAS ONLINE</p>
+            <h1 id="hero-title">Tu próximo partido<br />empieza acá.</h1>
+            <p class="hero-description">Consulta canchas, precios y horarios libres. Reserva en línea y asegura tu turno con una seña.</p>
+            <div class="hero-actions">
+                <a class="btn btn-primary" href="#vc-calendario">Buscar disponibilidad <span aria-hidden="true">→</span></a>
+            </div>
+            <p class="hero-confirm"><span aria-hidden="true">✓</span> La reserva se confirma cuando la seña queda aprobada.</p>
+        </div>
+        <div class="hero-visual" aria-hidden="true">
+            <img class="hero-pitch" src="~/images/football-pitch.svg" alt="" width="800" height="560" />
+            <span class="pitch-label">RUEDA LA BOCHA</span>
+            <div class="hero-note"><span class="note-icon">✓</span><div><strong>TU COMPLEJO · SEÑA ONLINE</strong><span>Confirmación al aprobarse el pago. Sin llamadas ni dobles reservas.</span></div></div>
+        </div>
+    </div>
+</section>
+<div class="container page-section">
+
+<div class="e1-layout">
+    <div class="e1-cal">
+        <h2 id="cal-titulo">Calendario de reservas</h2>
+        <p class="text-muted">Elegí primero la fecha. Después mostramos solo las canchas activas con horarios libres. La reserva dura @BookingPolicy.DurationMinutes minutos (@BookingPolicy.PriceDisplay).</p>
+        <div id="vc-calendario" class="vc-encaje" data-min="@todayIso" data-selected="@selectedIso"></div>
+        <form method="get" action="/Reservas" class="vc-fallback">
+            <label for="fecha">Fecha de la reserva</label>
+            <input type="date" id="fecha" name="fecha" min="@todayIso" value="@selectedIso" required />
+            <button type="submit" class="btn btn-primary btn-sm">Ver canchas</button>
+        </form>
+    </div>
+    <section aria-labelledby="canchas-titulo" id="canchas-titulo-ancla" tabindex="-1">
+        <p id="e1-estado" class="visually-hidden" role="status" aria-live="polite"></p>
+        <div id="e1-resultados">
+            <partial name="_Resultados" model="Model" />
+        </div>
+    </section>
+</div>
+</div>
+@section Scripts {
+<script src="~/lib/vanilla-calendar-pro/vanilla-calendar-pro.js" asp-append-version="true"></script>
+<script>
+(function () {
+    var host = document.getElementById('vc-calendario');
+    var region = document.getElementById('e1-resultados');
+    var estado = document.getElementById('e1-estado');
+    var fallback = document.querySelector('.vc-fallback');
+    var cal = null;
+    var sync = false;
+    var turno = 0;
+    var control = null;
+
+    function anunciar(msg) { if (estado) estado.textContent = msg; }
+    function corta(iso) { var p = iso.split('-'); return p.length === 3 ? p[2] + '/' + p[1] : iso; }
+    function valida(iso) { return /^\d{4}-\d{2}-\d{2}$/.test(iso); }
+    function mismaUrl(url) { return window.location.pathname + window.location.search === url; }
+    function ir(url, fecha) {
+        if (window.history && history.pushState && !mismaUrl(url)) history.pushState({ fecha: fecha || null }, '', url);
+    }
+    function pintar(html, fechaCorta) {
+        region.innerHTML = html;
+        region.classList.remove('e1-anim');
+        void region.offsetWidth;
+        region.classList.add('e1-anim');
+        anunciar(fechaCorta ? 'Resultados actualizados para el ' + fechaCorta + '.' : 'Elegí una fecha del calendario.');
+    }
+    function marcarCalendario(fechas, iso) {
+        if (!cal) return;
+        sync = true;
+        try {
+            var params = { selectedDates: fechas };
+            if (iso) {
+                var p = iso.split('-');
+                params.selectedYear = parseInt(p[0], 10);
+                params.selectedMonth = parseInt(p[1], 10) - 1;
+            }
+            cal.set(params);
+        } catch (e) {}
+        sync = false;
+    }
+    function syncFallback(iso) {
+        var input = document.getElementById('fecha');
+        if (input) input.value = iso || '';
+    }
+
+    function consultar(fecha, sinPush) {
+        if (!region || !valida(fecha)) return;
+        var mio = ++turno;
+        if (control) control.abort();
+        control = new AbortController();
+        var url = '/Reservas?fecha=' + encodeURIComponent(fecha);
+        region.innerHTML = '<p class="empty-state" role="status">Buscando turnos para el ' + corta(fecha) + '…</p>';
+        anunciar('Buscando turnos para el ' + corta(fecha) + '.');
+        fetch('/Reservas/Resultados?fecha=' + encodeURIComponent(fecha), {
+            signal: control.signal,
+            cache: 'no-store',
+            headers: { 'X-Requested-With': 'fetch' }
+        }).then(function (resp) {
+            if (mio !== turno) return null;
+            if (!resp.ok) throw new Error('http ' + resp.status);
+            return resp.text();
+        }).then(function (html) {
+            if (html === null || mio !== turno) return;
+            pintar(html, corta(fecha));
+            marcarCalendario([fecha], fecha);
+            syncFallback(fecha);
+            if (!sinPush) ir(url, fecha);
+        }).catch(function (err) {
+            if (mio !== turno) return;
+            if (err && err.name === 'AbortError') return;
+            region.innerHTML = '<p class="empty-state" role="alert">No pudimos consultar los turnos de esta fecha. Probá reintentar.</p>'
+                + '<p class="e1-retry"><a class="btn btn-primary" href="/Reservas?fecha=' + encodeURIComponent(fecha) + '">Reintentar</a> '
+                + '<a class="btn btn-outline-primary" href="/Reservas">Elegir otra fecha</a> '
+                + '<a class="text-link" href="#vc-calendario">Volver al calendario <span aria-hidden="true">↑</span></a></p>';
+            anunciar('No pudimos consultar los turnos. Probá reintentar.');
+        });
+    }
+
+    function limpiar(sinPush) {
+        if (!region) return;
+        var mio = ++turno;
+        if (control) control.abort();
+        control = new AbortController();
+        fetch('/Reservas/Resultados', {
+            signal: control.signal,
+            cache: 'no-store',
+            headers: { 'X-Requested-With': 'fetch' }
+        }).then(function (resp) {
+            if (mio !== turno) return null;
+            if (!resp.ok) throw new Error('http ' + resp.status);
+            return resp.text();
+        }).then(function (html) {
+            if (html === null || mio !== turno) return;
+            pintar(html, null);
+            marcarCalendario([], null);
+            syncFallback('');
+            if (!sinPush) ir('/Reservas', null);
+        }).catch(function (err) {
+            if (mio !== turno) return;
+            if (err && err.name === 'AbortError') return;
+            anunciar('No pudimos volver al calendario. Probá recargar.');
+        });
+    }
+
+    if (host && window.VanillaCalendarPro) {
+        var min = host.getAttribute('data-min');
+        var sel = host.getAttribute('data-selected');
+        var base = sel || min;
+        var parts = base.split('-');
+        var calendar = new VanillaCalendarPro.Calendar(host, {
+            type: 'default',
+            locale: 'es',
+            firstWeekday: 1,
+            selectionDatesMode: 'single',
+            selectedDates: sel ? [sel] : [],
+            selectedMonth: parseInt(parts[1], 10) - 1,
+            selectedYear: parseInt(parts[0], 10),
+            displayDateMin: min,
+            selectedTheme: 'light',
+            onClickDate: function (self, event) {
+                if (sync) return;
+                var btn = event.target && event.target.closest ? event.target.closest('[data-vc-date-btn]') : null;
+                var day = btn ? btn.closest('[data-vc-date]') : null;
+                var iso = day ? day.getAttribute('data-vc-date') : null;
+                if (iso) consultar(iso);
+            }
+        });
+        calendar.init();
+        cal = calendar;
+        if (fallback) fallback.hidden = true;
+    }
+
+    window.addEventListener('popstate', function (e) {
+        var fecha = e.state && e.state.fecha;
+        if (!fecha) {
+            var m = /[?&]fecha=(\d{4}-\d{2}-\d{2})/.exec(window.location.search);
+            fecha = m ? m[1] : null;
+        }
+        if (fecha) consultar(fecha, true);
+        else limpiar(true);
+    });
+
+    if (region) {
+        region.addEventListener('click', function (e) {
+            var enlace = e.target && e.target.closest ? e.target.closest('a[href*="/Reservas?fecha="], a[href="/Reservas"]') : null;
+            if (enlace) {
+                var m = /[?&]fecha=(\d{4}-\d{2}-\d{2})/.exec(enlace.getAttribute('href'));
+                e.preventDefault();
+                if (m) consultar(m[1]);
+                else limpiar(false);
+                return;
+            }
+            var btn = e.target && e.target.closest ? e.target.closest('.e1-toggle') : null;
+            if (btn && region.contains(btn)) {
+                var abierto = btn.getAttribute('aria-expanded') === 'true';
+                Array.prototype.forEach.call(region.querySelectorAll('.e1-toggle'), function (otro) {
+                    var panel = document.getElementById(otro.getAttribute('aria-controls'));
+                    var abre = otro === btn && !abierto;
+                    otro.setAttribute('aria-expanded', abre ? 'true' : 'false');
+                    if (panel) panel.classList.toggle('is-closed', !abre);
+                });
+            }
+        });
+        region.addEventListener('change', function (e) {
+            var radio = e.target;
+            if (!radio || radio.name !== 'turno' || !radio.checked) return;
+            var texto = document.getElementById('e1-resumen-texto');
+            var link = document.getElementById('e1-reservar');
+            if (!texto || !link) return;
+            var fechaIso = texto.getAttribute('data-fecha');
+            var fechaCorta = texto.getAttribute('data-fecha-corta');
+            texto.textContent = fechaCorta + ' · ' + radio.getAttribute('data-cancha') + ' · ' + radio.getAttribute('data-hora') + ' · se conserva al login';
+            link.setAttribute('href', '/Bookings/Create?courtId=' + encodeURIComponent(radio.value.split('|')[0]) + '&date=' + encodeURIComponent(fechaIso) + '&startTime=' + encodeURIComponent(radio.getAttribute('data-hora')));
+            var horaDestino = document.getElementById('e1-reservar-hora');
+            if (horaDestino) horaDestino.textContent = radio.getAttribute('data-hora');
+        });
+    }
+})();
+</script>
+}

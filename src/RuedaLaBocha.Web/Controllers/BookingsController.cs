@@ -9,10 +9,26 @@ namespace RuedaLaBocha.Web.Controllers;
 
 [Authorize]
 [Route("Bookings")]
-public class BookingsController(BookingService bookings) : Controller
+public class BookingsController(BookingService bookings, CourtService courts, CourtAvailabilityService availability) : Controller
 {
     [HttpGet("Create")]
-    public IActionResult Create() => View();
+    public async Task<IActionResult> Create(int? courtId, string? date, string? startTime)
+    {
+        if (courtId is null && date is null && startTime is null) return View();
+        if (!courtId.HasValue || !DateOnly.TryParse(date, out var parsedDate) || !TimeOnly.TryParse(startTime, out var parsedStart))
+            return Content("Selecciona una fecha válida.", "text/plain", System.Text.Encoding.UTF8).WithStatus(400);
+        var court = await courts.FindAsync(courtId.Value);
+        if (court is null) return Content(BookingService.UnknownCourtMessage, "text/plain", System.Text.Encoding.UTF8).WithStatus(404);
+        if (!court.IsActive) return Content(BookingService.InactiveCourtMessage, "text/plain", System.Text.Encoding.UTF8).WithStatus(400);
+        if (parsedDate < DateOnly.FromDateTime(DateTime.Today))
+            return Content(BookingService.PastSlotMessage, "text/plain", System.Text.Encoding.UTF8).WithStatus(400);
+        if (!(await availability.GetAvailableStartTimesAsync(courtId.Value, parsedDate)).Contains(parsedStart))
+            return Content(BookingService.BlockedSlotMessage, "text/plain", System.Text.Encoding.UTF8).WithStatus(400);
+        ViewData["Court"] = court;
+        ViewData["Date"] = parsedDate;
+        ViewData["StartTime"] = parsedStart;
+        return View();
+    }
 
     [HttpPost("")]
     [HttpPost("Create")]
@@ -33,9 +49,11 @@ public class BookingsController(BookingService bookings) : Controller
         {
             return Content(ex.Message, "text/plain", System.Text.Encoding.UTF8).WithStatus(400);
         }
-        catch (BookingConflictException ex)
+        catch (BookingConflictException)
         {
-            return Content(ex.Message, "text/plain", System.Text.Encoding.UTF8).WithStatus(409);
+            ViewData["Fecha"] = parsedDate.ToString("yyyy-MM-dd");
+            Response.StatusCode = 409;
+            return View("Conflict");
         }
         return RedirectToAction(nameof(Mine));
     }

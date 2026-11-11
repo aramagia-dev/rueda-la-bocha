@@ -166,7 +166,7 @@ public class AvailabilityRegressionTests
         before = app.Snapshot();
         Assert.Equal(HttpStatusCode.NotFound, (await guest.GetAsync(path + "2026-11-09")).StatusCode);
         Assert.Equal(before, app.Snapshot());
-        Assert.DoesNotContain("Probe court", await guest.GetStringAsync("/Courts"));
+        Assert.Equal(HttpStatusCode.NotFound, (await guest.GetAsync("/Courts")).StatusCode);
         Assert.Equal(3L, app.Scalar("SELECT COUNT(*) FROM CourtSchedules"));
     }
 

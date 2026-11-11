@@ -4,7 +4,7 @@ using RuedaLaBocha.Web.Models;
 
 namespace RuedaLaBocha.Web.Services;
 
-public sealed class CourtAvailabilityService(ApplicationDbContext db)
+public sealed class CourtAvailabilityService(ApplicationDbContext db) : ICourtAvailabilityService
 {
     public async Task<List<TimeOnly>> GetAvailableStartTimesAsync(int courtId, DateOnly date)
     {

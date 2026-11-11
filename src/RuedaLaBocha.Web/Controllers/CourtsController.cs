@@ -9,9 +9,6 @@ namespace RuedaLaBocha.Web.Controllers;
 [Authorize(Roles = AppRoles.Administrator)]
 public class CourtsController(CourtService courts) : Controller
 {
-    [AllowAnonymous]
-    public async Task<IActionResult> Index() => View(await courts.ListAsync());
-
     public async Task<IActionResult> Manage() => View(await courts.ListAsync(includeInactive: true));
 
     public IActionResult Create() => View("Form", new CourtForm());

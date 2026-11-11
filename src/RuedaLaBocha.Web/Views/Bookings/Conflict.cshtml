@@ -1,0 +1,7 @@
+@{
+    ViewData["Title"] = "Horario ocupado";
+    var fecha = ViewData["Fecha"] as string ?? "";
+}
+<div class="page-heading"><p class="eyebrow">RESERVAS</p><h1>Este horario ya fue reservado</h1><p class="text-muted">Elegí otro horario disponible. Tu lugar no se modificó.</p></div>
+<p class="empty-state">Este horario ya fue reservado. Elegí otro horario disponible. <a asp-controller="Reservas" asp-action="Index" asp-route-fecha="@fecha">Volver a consultar el @fecha</a></p>
+<a asp-controller="Reservas" asp-action="Index" asp-route-fecha="@fecha">Volver a consultar</a>

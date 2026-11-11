@@ -13,21 +13,37 @@
 }
 else
 {
-    <ul class="list-group mb-3">
+    <div class="mine-tabla-scroll">
+    <table class="table mine-tabla">
+        <caption class="visually-hidden">Tus reservas de fútbol 5</caption>
+        <thead>
+            <tr><th scope="col">Fecha</th><th scope="col">Hora</th><th scope="col">Cancha</th><th scope="col">Precio</th><th scope="col">Estado</th><th scope="col">Acciones</th></tr>
+        </thead>
+        <tbody>
         @foreach (var booking in Model)
         {
-            <li class="list-group-item">
-                <strong>@booking.Date.ToString("dd/MM/yyyy") @booking.StartTime.ToString("HH:mm") - @booking.EndTime.ToString("HH:mm")</strong>
-                <span class="text-muted">@booking.Court.Name · @BookingPolicy.PriceDisplay · @booking.Status</span>
-                <a asp-action="Detail" asp-route-id="@booking.Id">Ver detalle</a>
-                @if (booking.Status == BookingStatus.Active)
-                {
-                    <form method="post" asp-action="Cancel" asp-route-id="@booking.Id" class="d-inline">
-                        <button class="btn btn-link" type="submit">Cancelar reserva</button>
-                    </form>
-                }
-            </li>
+            var activa = booking.Status == BookingStatus.Active;
+            <tr>
+                <td>@booking.Date.ToString("dd/MM/yyyy")</td>
+                <td>@booking.StartTime.ToString("HH:mm") - @booking.EndTime.ToString("HH:mm")</td>
+                <td>@booking.Court.Name</td>
+                <td>ARS @booking.PriceArs.ToString("N0", System.Globalization.CultureInfo.GetCultureInfo("es-AR"))</td>
+                <td><span class="status-badge @(activa ? "status-active" : "status-inactive")">@(activa ? "Activa" : "Cancelada")</span></td>
+                <td>
+                    <div class="mine-actions">
+                        <a class="btn btn-primary btn-sm" asp-action="Detail" asp-route-id="@booking.Id">Ver detalle</a>
+                        @if (activa)
+                        {
+                            <form method="post" asp-action="Cancel" asp-route-id="@booking.Id" class="d-inline">
+                                <button class="btn btn-outline-danger btn-sm" type="submit">Cancelar reserva</button>
+                            </form>
+                        }
+                    </div>
+                </td>
+            </tr>
         }
-    </ul>
+        </tbody>
+    </table>
+    </div>
 }
 <a asp-action="Create">Reservar otra cancha</a>

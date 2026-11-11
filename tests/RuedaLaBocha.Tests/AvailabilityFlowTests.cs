@@ -43,7 +43,7 @@ public class AvailabilityFlowTests
         using var app = new TestApp();
         using var admin = await Owner(app);
         using var guest = app.Client();
-        Assert.Contains("Consultar disponibilidad", await guest.GetStringAsync("/Courts"));
+        Assert.Contains("Consultar disponibilidad", await guest.GetStringAsync("/Availability?courtId=1&date=" + Monday));
         Assert.Equal(HttpStatusCode.Redirect, (await CourtFlowTests.Post(admin, Schedule, Hours("18:00", "20:30"))).StatusCode);
         Assert.Equal(HttpStatusCode.Redirect, (await CourtFlowTests.Post(admin, Schedule, Hours("21:00", "23:00"))).StatusCode);
         var path = "/Availability?courtId=1&date=" + Monday;
@@ -61,7 +61,7 @@ public class AvailabilityFlowTests
         Assert.Equal(HttpStatusCode.NotFound, (await guest.GetAsync("/Availability?courtId=999")).StatusCode);
         Assert.Equal(HttpStatusCode.Redirect, (await CourtFlowTests.Post(admin, "/Courts/Manage", new(), "/Courts/Deactivate/1")).StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, (await guest.GetAsync(path)).StatusCode);
-        Assert.DoesNotContain("Available court", await guest.GetStringAsync("/Courts"));
+        Assert.Equal(HttpStatusCode.NotFound, (await guest.GetAsync(path)).StatusCode);
     }
 
     [Fact]

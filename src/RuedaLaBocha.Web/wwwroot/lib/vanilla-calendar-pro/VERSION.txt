@@ -1,0 +1,7 @@
+vanilla-calendar-pro 3.4.0 (verificado 2026-11-11)
+Fuente oficial: https://registry.npmjs.org/vanilla-calendar-pro/-/vanilla-calendar-pro-3.4.0.tgz
+Repo: https://github.com/uvarov-frontend/vanilla-calendar-pro.git
+Licencia: MIT (LICENSE copia verbatim del paquete, (c) 2024 Yury Uvarov)
+Integridad npm: sha512-HLWjzHOWvMIrjI77tXK5bYzp0s5TeBSrZC247STjcTAdWI7kqEwWT6Xvu20vqdwzF498H1Da8l4WpdgVIGtc1Q==
+npm dist-tag latest verificado: 3.4.0
+Archivos verbatim sin parchear: vanilla-calendar-pro.js (package/index.js UMD global window.VanillaCalendarPro), vanilla-calendar-pro.css (package/styles/index.css).

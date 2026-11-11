@@ -12,40 +12,46 @@ public class CourtInterfaceTests
     [Fact]
     public async Task Home_and_catalog_show_truthful_spanish_empty_states_and_real_navigation()
     {
+        // Requisito aprobado 175/176/182 reemplaza el hero legacy: / redirige al calendario.
+        // Simplificación pública: el catálogo /Courts ya no existe (404); el flujo es fecha→canchas en /Reservas.
         using var app = new TestApp();
         using var guest = app.Client();
-        foreach (var path in new[] { "/", "/Courts" })
-        {
-            var html = await Html(guest, path);
-            Assert.Contains("lang=\"es-AR\"", html);
-            Assert.Contains("Todavía no hay canchas publicadas", html);
-            Assert.Contains("Fútbol 5", html);
-            Assert.Contains("60 minutos", html);
-            Assert.Contains("ARS 40.000", html);
-            Assert.Contains("href=\"#main-content\"", html);
-            Assert.Contains("id=\"main-content\"", html);
-            Assert.Contains("aria-controls=\"main-navigation\"", html);
-            Assert.Contains("id=\"main-navigation\"", html);
-            Assert.Contains("href=\"/Courts\"", html);
-            Assert.DoesNotContain("/Courts/Manage", html);
-            Assert.DoesNotContain("type=\"date\"", html);
-            Assert.DoesNotContain("Reservar", html);
-            Assert.DoesNotContain("Mis reservas", html);
-            Assert.DoesNotContain("/Payments", html);
-            Assert.DoesNotContain("<article class=\"court-card\"", html);
-        }
-        var home = await Html(guest, "/");
-        Assert.Contains("Tu próximo partido", home);
-        Assert.Contains("empieza acá.", home);
-        Assert.Contains("href=\"#el-complejo\"", home);
-        Assert.Contains("id=\"el-complejo\"", home);
-        Assert.Contains("href=\"/Identity/Account/Login\"", home);
+        var root = await guest.GetAsync("/");
+        Assert.Equal(HttpStatusCode.Redirect, root.StatusCode);
+        Assert.Contains("/Reservas", root.Headers.Location!.ToString());
+        var html = await Html(guest, "/Reservas");
+        Assert.Contains("lang=\"es-AR\"", html);
+        Assert.Contains("Fútbol 5", html);
+        Assert.Contains("60 minutos", html);
+        Assert.Contains("ARS 40.000", html);
+        Assert.Contains("href=\"#main-content\"", html);
+        Assert.Contains("id=\"main-content\"", html);
+        Assert.Contains("aria-controls=\"main-navigation\"", html);
+        Assert.Contains("id=\"main-navigation\"", html);
+        Assert.DoesNotContain("href=\"/Courts\"", html);
+        Assert.Contains("action=\"/Reservas\"", html);
+        Assert.Contains(">Inicio<", html);
+        Assert.DoesNotContain(">Reservar<", html);
+        Assert.DoesNotContain("Cómo funciona", html);
+        Assert.DoesNotContain("como-funciona", html);
+        Assert.DoesNotContain("/Courts/Manage", html);
+        Assert.DoesNotContain("Mis reservas", html);
+        Assert.DoesNotContain("/Payments", html);
+        Assert.DoesNotContain("<article class=\"court-card\"", html);
+        var calendar = html;
+        Assert.Contains("Calendario", calendar);
+        Assert.Contains("vc-calendario", calendar);
+        Assert.Contains("vanilla-calendar-pro.js", calendar);
+        Assert.DoesNotContain("Reservar turno", calendar);
+        Assert.Equal(HttpStatusCode.NotFound, (await guest.GetAsync("/Courts")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await guest.GetAsync("/Courts/Index")).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await guest.GetAsync("/images/football-pitch.svg")).StatusCode);
     }
 
     [Fact]
-    public async Task Home_previews_three_real_active_courts_and_catalog_shows_all_with_encoded_content()
+    public async Task Admin_manage_lists_all_courts_with_encoded_content_and_public_catalog_is_gone()
     {
+        // Simplificación pública: sin catálogo /Courts (404); el admin sigue viendo todo en Manage.
         using var app = new TestApp();
         using var admin = await app.Login(admin: true);
         foreach (var name in new[] { "Alfa", "Beta", "Delta", "Gamma" })
@@ -53,20 +59,19 @@ public class CourtInterfaceTests
                 new() { ["Name"] = name, ["Description"] = "<em>Real description</em>" })).StatusCode);
         await CourtFlowTests.Post(admin, "/Courts/Create", new() { ["Name"] = "Hidden court", ["IsActive"] = "false" });
         using var guest = app.Client();
-        var home = await guest.GetStringAsync("/");
-        var catalog = await guest.GetStringAsync("/Courts");
-        Assert.Equal(3, Regex.Matches(home, "<article class=\"court-card\"").Count);
-        Assert.Equal(4, Regex.Matches(catalog, "<article class=\"court-card\"").Count);
-        foreach (var html in new[] { home, catalog })
-        {
-            Assert.Contains("Alfa", html);
-            Assert.Contains("&lt;em&gt;Real description&lt;/em&gt;", html);
-            Assert.DoesNotContain("<em>Real description</em>", html);
-            Assert.DoesNotContain("Hidden court", html);
-            Assert.True(html.IndexOf("Alfa", StringComparison.Ordinal) < html.IndexOf("Beta", StringComparison.Ordinal));
-        }
-        Assert.DoesNotContain("Gamma", home);
-        Assert.Contains("Gamma", catalog);
+        Assert.Equal(HttpStatusCode.NotFound, (await guest.GetAsync("/Courts")).StatusCode);
+        var manage = await admin.GetStringAsync("/Courts/Manage");
+        foreach (var name in new[] { "Alfa", "Beta", "Delta", "Gamma", "Hidden court" })
+            Assert.Contains(name, manage);
+        Assert.Contains("&lt;em&gt;Real description&lt;/em&gt;", manage);
+        Assert.DoesNotContain("<em>Real description</em>", manage);
+        var calendar = await guest.GetStringAsync("/Reservas");
+        Assert.Contains("Calendario", calendar);
+        Assert.DoesNotContain("Reservar turno", calendar);
+        var monday = DateOnly.FromDateTime(DateTime.Today.AddDays(1));
+        while (monday.DayOfWeek != DayOfWeek.Monday) monday = monday.AddDays(1);
+        var dated = await guest.GetStringAsync($"/Reservas?fecha={monday:yyyy-MM-dd}");
+        Assert.Contains("cambiar de fecha", dated);
     }
 
     [Fact]
@@ -147,8 +152,7 @@ public class CourtInterfaceTests
         });
         Assert.Equal(HttpStatusCode.Redirect, saved.StatusCode);
         Assert.Equal(1L, app.Scalar("SELECT COUNT(*) FROM Courts WHERE length(Name) = 100 AND length(Description) = 1000 AND IsActive = 1"));
-        using var guest = app.Client();
-        Assert.Contains(name, await guest.GetStringAsync("/Courts"));
+        Assert.Contains(name, await admin.GetStringAsync("/Courts/Manage"));
     }
 
     [Theory]

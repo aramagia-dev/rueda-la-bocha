@@ -27,13 +27,13 @@ public class CourtFlowTests
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
         Assert.Equal(1L, app.Scalar("SELECT COUNT(*) FROM Courts WHERE Name = 'Court One' AND IsActive = 1"));
         using var guest = app.Client();
-        var catalog = await guest.GetStringAsync("/Courts");
-        Assert.Contains("Court One", catalog);
-        Assert.Contains("Fútbol 5", WebUtility.HtmlDecode(catalog));
-        Assert.Contains("60 minutos", catalog);
-        Assert.Contains("40.000", catalog);
-        Assert.Contains("ARS", catalog);
-        Assert.DoesNotContain("/Courts/Edit", catalog);
+        Assert.Equal(HttpStatusCode.NotFound, (await guest.GetAsync("/Courts")).StatusCode);
+        var disponible = await guest.GetStringAsync("/Availability?courtId=1");
+        Assert.Contains("Court One", disponible);
+        Assert.Contains("Fútbol 5", WebUtility.HtmlDecode(disponible));
+        Assert.Contains("60 minutos", disponible);
+        Assert.Contains("40.000", disponible);
+        Assert.Contains("ARS", disponible);
         response = await Post(admin, "/Courts/Edit/1", new() { ["Name"] = "Court Updated", ["Description"] = "Outdoor", ["IsActive"] = "true" });
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
         Assert.Equal(1L, app.Scalar("SELECT COUNT(*) FROM Courts WHERE Name = 'Court Updated' AND Description = 'Outdoor'"));
@@ -41,7 +41,7 @@ public class CourtFlowTests
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
         Assert.Equal(1L, app.Scalar("SELECT COUNT(*) FROM Courts"));
         Assert.Equal(0L, app.Scalar("SELECT IsActive FROM Courts WHERE Id = 1"));
-        Assert.DoesNotContain("Court Updated", await guest.GetStringAsync("/Courts"));
+        Assert.Equal(HttpStatusCode.NotFound, (await guest.GetAsync("/Availability?courtId=1")).StatusCode);
         Assert.Contains("Court Updated", await admin.GetStringAsync("/Courts/Manage"));
     }
 
@@ -94,9 +94,10 @@ public class CourtFlowTests
         Assert.Equal(HttpStatusCode.Redirect, created.StatusCode);
         Assert.Equal(1L, app.Scalar("SELECT IsActive FROM Courts"));
         using var guest = app.Client();
-        var html = await guest.GetStringAsync("/Courts");
-        Assert.DoesNotContain("<script>alert(1)</script>", html);
-        Assert.Contains("&lt;script&gt;", html);
+        Assert.Equal(HttpStatusCode.NotFound, (await guest.GetAsync("/Courts")).StatusCode);
+        var managed = await admin.GetStringAsync("/Courts/Manage");
+        Assert.DoesNotContain("<script>alert(1)</script>", managed);
+        Assert.Contains("&lt;script&gt;", managed);
         var before = app.Snapshot();
         foreach (var path in new[] { "/Courts/Edit/1", "/Courts/Deactivate/1" })
         {
@@ -136,7 +137,7 @@ public class CourtFlowTests
         Assert.Equal(1L, app.Scalar("SELECT COUNT(*) FROM Courts"));
         Assert.Equal(0L, app.Scalar("SELECT IsActive FROM Courts"));
         using var guest = app.Client();
-        Assert.DoesNotContain("Inactive requested", await guest.GetStringAsync("/Courts"));
+        Assert.Equal(HttpStatusCode.NotFound, (await guest.GetAsync("/Availability?courtId=1")).StatusCode);
     }
 
     [Fact]
@@ -155,7 +156,6 @@ public class CourtFlowTests
     }
 
     [Theory]
-    [InlineData("/")]
     [InlineData("/Home/Privacy")]
     [InlineData("/Identity/Account/Login")]
     [InlineData("/Identity/Account/Register")]
@@ -165,6 +165,20 @@ public class CourtFlowTests
         using var app = new TestApp();
         using var client = app.Client();
         Assert.Equal(HttpStatusCode.OK, (await client.GetAsync(path)).StatusCode);
+    }
+
+    [Fact]
+    public async Task Root_redirects_to_calendar_without_showing_courts_before_date()
+    {
+        // Requisito aprobado 175/176/182 reemplaza el hero legacy: / es calendario sin canchas hasta fecha.
+        using var app = new TestApp();
+        using var guest = app.Client();
+        var root = await guest.GetAsync("/");
+        Assert.Equal(HttpStatusCode.Redirect, root.StatusCode);
+        Assert.Contains("/Reservas", root.Headers.Location!.ToString());
+        var calendar = await guest.GetStringAsync("/Reservas");
+        Assert.Contains("Calendario", calendar);
+        Assert.DoesNotContain("Reservar turno", calendar);
     }
 
     [Fact]
@@ -220,7 +234,7 @@ public class CourtFlowTests
     }
 }
 
-internal sealed class TestApp : WebApplicationFactory<HomeController>
+internal class TestApp : WebApplicationFactory<HomeController>
 {
     internal const string Password = "TestOnly-Valid123!";
     private readonly string directory = Path.Combine(Path.GetTempPath(), "rlb-tests-" + Guid.NewGuid());
