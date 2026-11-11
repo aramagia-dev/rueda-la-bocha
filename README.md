@@ -45,7 +45,24 @@ dotnet run --project src/RuedaLaBocha.Web --no-launch-profile --urls http://127.
 
 Detalles: `src/RuedaLaBocha.Web/Security/AdminProvisioner.cs` y `tests/RuedaLaBocha.Tests/BootstrapDevAccountsTests.cs`. Nunca usar en producción; las cuentas existentes nunca se promueven ni resetean.
 
+### Bootstrap dev (requiere opt-in exacto)
+
+`--bootstrap-dev-accounts` solo crea cuentas si además están estas 2 variables (`AdminProvisioner.cs:89-91`, `BootstrapDevAccountsTests.cs:166-171`):
+
+```powershell
+$env:ASPNETCORE_ENVIRONMENT = "Development"
+$env:ConnectionStrings__DefaultConnection = "Data Source=$env:TEMP\opencode\rlb-iso\c3.db;Cache=Shared"
+$env:BootstrapDev__ExpectedDatabase = "$env:TEMP\opencode\rlb-iso\c3.db"
+$env:BootstrapDev__AllowedRoot = "$env:TEMP\opencode\rlb-iso"
+dotnet run --project src/RuedaLaBocha.Web --no-launch-profile --urls http://127.0.0.1:5097 -- --bootstrap-dev-accounts
+```
+
+Sin ambas variables (DB exacta `$env:TEMP\opencode\rlb-iso\c3.db` bajo root `$env:TEMP\opencode\rlb-iso`, a su vez bajo `GetTempPath()`), termina con `Dev accounts blocked` (`Program.cs:62`) y no crea nada.
+
 ## Notas QA
 
 - Suite: **94/95**; único rojo conocido **E1** (literal `no hay pagos implementados` preservado, `tests/RuedaLaBocha.Tests/E1AgendaTests.cs`).
 - **Sin pagos**: no hay integración Padi/Mercado Pago en esta rama.
+
+---
+*Este README en español reemplaza al README inglés base solo en estas ramas (`ramiro/FixFlujo`, `ramiro/Padi`); conciliar al fusionar a `develop`.*
