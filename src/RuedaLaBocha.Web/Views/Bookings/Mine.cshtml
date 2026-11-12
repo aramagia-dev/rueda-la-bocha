@@ -1,13 +1,70 @@
 @model List<Booking>
 @{
     ViewData["Title"] = "Mis reservas";
+    var filtro = ViewData["Status"] as string;
+    var esTodas = string.IsNullOrEmpty(filtro);
+    var esActivas = string.Equals(filtro, nameof(BookingStatus.Active), StringComparison.OrdinalIgnoreCase);
+    var esCanceladas = string.Equals(filtro, nameof(BookingStatus.Cancelled), StringComparison.OrdinalIgnoreCase);
+    var esPendientes = string.Equals(filtro, nameof(BookingHoldStatus.Pending), StringComparison.OrdinalIgnoreCase);
+    var pendingHolds = ViewBag.PendingHolds as List<BookingHold> ?? new();
+    var verPendientes = esTodas || esPendientes;
 }
 <div class="page-heading"><p class="eyebrow">RESERVAS</p><h1>Mis reservas</h1><p class="text-muted">Acá ves tus reservas de fútbol 5 (@BookingPolicy.PriceDisplay por turno de @BookingPolicy.DurationMinutes minutos).</p></div>
+<nav class="mb-3" aria-label="Filtrar por estado">
+    <a class="btn btn-sm @(esTodas ? "btn-primary" : "btn-outline-primary")" asp-action="Mine">Todas</a>
+    <a class="btn btn-sm @(esActivas ? "btn-primary" : "btn-outline-primary")" asp-action="Mine" asp-route-status="Active">Activas</a>
+    <a class="btn btn-sm @(esCanceladas ? "btn-primary" : "btn-outline-primary")" asp-action="Mine" asp-route-status="Cancelled">Canceladas</a>
+    <a class="btn btn-sm @(esPendientes ? "btn-primary" : "btn-outline-primary")" asp-action="Mine" asp-route-status="Pending">Pendientes de pago</a>
+</nav>
 @if (TempData["BookingMessage"] is string message)
 {
     <p class="alert alert-success">@message</p>
 }
-@if (Model.Count == 0)
+@if (verPendientes)
+{
+    <section aria-label="Pagos pendientes">
+        <h2 class="h5">Pagos pendientes</h2>
+        @if (pendingHolds.Count == 0)
+        {
+            @if (esPendientes)
+            {
+                <p class="empty-state">No tenés pagos pendientes.</p>
+            }
+        }
+        else
+        {
+            <div class="mine-tabla-scroll">
+            <table class="table mine-tabla">
+                <caption class="visually-hidden">Tus pagos pendientes de fútbol 5</caption>
+                <thead>
+                    <tr><th scope="col">Fecha</th><th scope="col">Hora</th><th scope="col">Cancha</th><th scope="col">Importe</th><th scope="col">Vence</th><th scope="col">Estado</th><th scope="col">Acciones</th></tr>
+                </thead>
+                <tbody>
+                @foreach (var hold in pendingHolds)
+                {
+                    <tr>
+                        <td>@hold.Date.ToString("dd/MM/yyyy")</td>
+                        <td>@hold.StartTime.ToString("HH:mm") - @hold.EndTime.ToString("HH:mm")</td>
+                        <td>@hold.Court.Name</td>
+                        <td>ARS @hold.AmountArs.ToString("N0", System.Globalization.CultureInfo.GetCultureInfo("es-AR"))</td>
+                        <td>@hold.ExpiresAtUtc.ToLocalTime().ToString("dd/MM HH:mm")</td>
+                        <td><span class="status-badge status-pending">Pendiente de pago</span></td>
+                        <td>
+                            <div class="mine-actions">
+                                <a class="btn btn-primary btn-sm" asp-controller="BookingHolds" asp-action="Detail" asp-route-id="@hold.Id">Retomar pago</a>
+                            </div>
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+            </div>
+        }
+    </section>
+}
+@if (!esPendientes)
+{
+if (Model.Count == 0)
 {
     <p class="empty-state">Todavía no tenés reservas. Elegí un horario disponible y confirmá la tuya.</p>
 }
@@ -45,5 +102,6 @@ else
         </tbody>
     </table>
     </div>
+}
 }
 <a asp-action="Create">Reservar otra cancha</a>

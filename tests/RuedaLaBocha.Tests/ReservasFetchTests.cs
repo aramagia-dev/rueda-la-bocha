@@ -136,10 +136,7 @@ public sealed class ReservasFetchTests
         var courtId = await CreateCourtWithMondaySchedule(app, "Cancha Tabla");
         var date = Next(DayOfWeek.Monday);
         using var owner = await Login(app, "tabla@example.test");
-        var created = await CourtFlowTests.Post(owner, "/Bookings/Create",
-            new() { ["courtId"] = courtId.ToString(), ["date"] = date.ToString("yyyy-MM-dd"), ["startTime"] = "09:00" },
-            "/Bookings");
-        Assert.Equal(HttpStatusCode.Redirect, created.StatusCode);
+        await SeedBooking(app, "tabla@example.test", courtId, date);
 
         var mine = WebUtility.HtmlDecode(await owner.GetStringAsync("/Bookings/Mine"));
         Assert.Contains("<table", mine);
@@ -230,9 +227,7 @@ public sealed class ReservasFetchTests
         var courtId = await CreateCourtWithMondaySchedule(app, "Cancha Botones");
         var date = Next(DayOfWeek.Monday);
         using var owner = await Login(app, "botones@example.test");
-        Assert.Equal(HttpStatusCode.Redirect, (await CourtFlowTests.Post(owner, "/Bookings/Create",
-            new() { ["courtId"] = courtId.ToString(), ["date"] = date.ToString("yyyy-MM-dd"), ["startTime"] = "09:00" },
-            "/Bookings")).StatusCode);
+        await SeedBooking(app, "botones@example.test", courtId, date);
         var mine = WebUtility.HtmlDecode(await owner.GetStringAsync("/Bookings/Mine"));
         var bookingId = await BookingId(app, "botones@example.test", courtId, date);
         Assert.Contains($"<a class=\"btn btn-primary btn-sm\" href=\"/Bookings/{bookingId}\">Ver detalle</a>", mine);
@@ -248,10 +243,7 @@ public sealed class ReservasFetchTests
         var courtId = await CreateCourtWithMondaySchedule(app, "Cancha Precio");
         var date = Next(DayOfWeek.Monday);
         using var owner = await Login(app, "precio@example.test");
-        var created = await CourtFlowTests.Post(owner, "/Bookings/Create",
-            new() { ["courtId"] = courtId.ToString(), ["date"] = date.ToString("yyyy-MM-dd"), ["startTime"] = "09:00" },
-            "/Bookings");
-        Assert.Equal(HttpStatusCode.Redirect, created.StatusCode);
+        await SeedBooking(app, "precio@example.test", courtId, date);
         using (var connection = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={app.Database}"))
         {
             connection.Open();
@@ -292,6 +284,17 @@ public sealed class ReservasFetchTests
         }
         return Convert.ToInt32(app.Scalar(
             $"SELECT Id FROM Bookings WHERE CourtId = {courtId} AND Date = '{date:yyyy-MM-dd}' AND UserId = '{userId}'"));
+    }
+
+    // La reserva solo nace con pago total: en tests se siembra directo vía
+    // servicio (el POST /Bookings/Create siempre devuelve 400).
+    private static async Task<int> SeedBooking(TestApp app, string email, int courtId, DateOnly date)
+    {
+        using var scope = app.Services.CreateScope();
+        var users = scope.ServiceProvider.GetRequiredService<Microsoft.AspNetCore.Identity.UserManager<Microsoft.AspNetCore.Identity.IdentityUser>>();
+        var userId = (await users.FindByEmailAsync(email))!.Id;
+        return (await scope.ServiceProvider.GetRequiredService<BookingService>()
+            .CreateAsync(userId, courtId, date, new TimeOnly(9, 0))).Id;
     }
 
     private static async Task<HttpClient> Login(TestApp app, string email)

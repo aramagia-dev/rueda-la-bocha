@@ -61,13 +61,15 @@ Sin ambas variables (DB exacta `$env:TEMP\opencode\rlb-iso\c3.db` bajo root `$en
 
 ## Notas QA
 
-- Suite: **100/101**; único rojo conocido **E1** (literal `no hay pagos implementados` preservado, `tests/RuedaLaBocha.Tests/E1AgendaTests.cs`).
-- **Pagos**: solo demo Padi sandbox (sin dinero real); el snapshot de migraciones apunta a `20261111225033_AddPadiPayments`.
+- Suite: **110/111**; único rojo conocido **E1** (literal `no hay pagos implementados` preservado, `tests/RuedaLaBocha.Tests/E1AgendaTests.cs`).
+- **Pagos**: solo demo Padi sandbox (sin dinero real); el snapshot de migraciones apunta a `20261111233359_AddBookingHolds`.
 
 ## Padi demo (sandbox, sin pagos reales)
 
 - Estado: **implementado como demo universitaria** en esta rama; no hay claves en el repo.
-- Flujo: en el detalle de una reserva propia activa, botón **Pagar con Padi (demo)** → crea un enlace `SingleUse` en ARS con el importe fijado por el servidor (`Booking.PriceArs`) → muestra enlace (nueva pestaña) + QR → botón **Comprobar estado** consulta Padi por polling (reintenta cada 5 s mientras sigue pendiente). Solo `Succeeded` con mismo enlace + importe + moneda marca aprobado; `Pending`/`Processing` queda pendiente, nunca aprobado. Sin webhooks, sin reembolso, sin auto-confirmar ni cancelar reservas.
+- Flujo (pago TOTAL, sin seña): desde **Confirmar reserva** (`/Bookings/Create?courtId=..&date=..&startTime=..`), botón **Pagar total con Padi (demo)** → `POST /Bookings/Holds` crea un hold de 15 min + enlace `SingleUse` en ARS con el importe fijado por el servidor (`BookingPolicy.PriceArs`) → `GET /Bookings/Holds/{id}` muestra enlace (nueva pestaña) + QR + botón **Comprobar estado** que consulta Padi por polling (reintenta cada 5 s mientras sigue pendiente). Solo `Succeeded` con mismo enlace + importe + moneda crea la reserva `Active` con precio histórico y marca el hold consumido. `Pending`/`Processing` queda pendiente, nunca aprobado. `Failed`/`Cancelled`/vencido (15 min) liberan el turno sin crear reserva. La reserva NO existe hasta cobrarse. Sin webhooks, sin reembolsos, sin auto-cancelar reservas.
+- El turno con hold vigente desaparece de `/Reservas` (bloqueado 15 min); al liberarse vuelve a ofrecerse.
+- Se conserva el flujo anterior de seña sobre reserva ya creada (`Bookings/{id}/Padi`, `PadiPaymentsController`) sin cambios de comportamiento; el payload de `CreateLinkAsync` ya no envía `description` (Padi devuelve 400 `INVALID_INPUT` sobre `$.description`).
 - Configurar la clave sandbox (nunca commitearla, no va en logs ni tests):
   ```powershell
   dotnet user-secrets set "Padi:ApiKey" "<tu-clave-sandbox>" --project src/RuedaLaBocha.Web
@@ -75,7 +77,7 @@ Sin ambas variables (DB exacta `$env:TEMP\opencode\rlb-iso\c3.db` bajo root `$en
   $env:Padi__ApiKey = "<tu-clave-sandbox>"
   ```
   Opcional: `Padi:BaseUrl` (defecto `https://padi.runasp.net`) y `Padi:TtlMinutes` (defecto 30).
-- Probar con cuentas dev `admin@gmail.com` / `user@gmail.com` (ver bootstrap arriba): crear la reserva como `user@gmail.com`, abrir su detalle y pagar con otra cuenta Padi (el checkout muestra “Cobro propio” si usás la misma cuenta vendedora).
+- Probar con cuentas dev `admin@gmail.com` / `user@gmail.com` (ver bootstrap arriba): como `user@gmail.com`, elegir turno en `/Reservas`, confirmar con **Pagar total con Padi (demo)**, abrir el checkout en otra cuenta Padi (muestra “Cobro propio” si usás la misma cuenta vendedora) y volver a **Comprobar estado** hasta que cree la reserva; el turno queda bloqueado en `/Reservas` mientras el hold está vigente. Para la seña del flujo anterior: crear la reserva como `user@gmail.com`, abrir su detalle y pagar igual que antes.
 - Referencia (solo lectura, sin copiar secretos): docs del API en `https://padi-api.mintlify.site/` y rama `origin/feature/choni-pagos` (`fe951e2`, demo Padi poll-only, no fusionada; acá se corrigen sus defectos: dueño validado, importe fijado en servidor).
 - Límites conocidos: Padi no deduplica (sin idempotencia): no reintentar crear el enlace; ante timeout la fila queda pendiente y se concilia con Comprobar estado. El listado de pagos recibidos no pagina (máx. 100).
 

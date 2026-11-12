@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text.RegularExpressions;
+using RuedaLaBocha.Web.Models;
 
 namespace RuedaLaBocha.Tests;
 
@@ -23,7 +24,7 @@ public class CourtInterfaceTests
         Assert.Contains("lang=\"es-AR\"", html);
         Assert.Contains("Fútbol 5", html);
         Assert.Contains("60 minutos", html);
-        Assert.Contains("ARS 40.000", html);
+        Assert.Contains(BookingPolicy.PriceDisplay, html);
         Assert.Contains("href=\"#main-content\"", html);
         Assert.Contains("id=\"main-content\"", html);
         Assert.Contains("aria-controls=\"main-navigation\"", html);

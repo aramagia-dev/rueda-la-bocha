@@ -9,8 +9,10 @@ using RuedaLaBocha.Web.Services;
 
 namespace RuedaLaBocha.Tests;
 
-// Demo Padi sandbox: enlace SingleUse en ARS desde reserva propia activa,
-// aprobado solo ante Succeeded + mismo enlace + importe + moneda.
+// Pago TOTAL con Padi: la reserva solo nace del hold consumido. El POST
+// directo /Bookings/Create devuelve 400 y el POST /Bookings/{id}/Padi se
+// rechaza (anti doble cobro): la reserva Active ya tiene pago total o es
+// legacy sin cobro habilitado.
 [Collection("Court integration")]
 public sealed class PadiDemoTests
 {
@@ -20,7 +22,7 @@ public sealed class PadiDemoTests
         public List<PadiReceivedPayment> Received { get; } = new();
         public Dictionary<string, PadiReceivedPayment> ById { get; } = new();
 
-        public Task<PadiLink> CreateLinkAsync(decimal amountArs, string title, string? description, CancellationToken ct = default)
+        public Task<PadiLink> CreateLinkAsync(decimal amountArs, string title, CancellationToken ct = default, int? ttlMinutes = null)
             => Task.FromResult(Link);
 
         public Task<IReadOnlyList<PadiReceivedPayment>> ListReceivedPaymentsAsync(int limit = 100, CancellationToken ct = default)
@@ -47,31 +49,118 @@ public sealed class PadiDemoTests
     }
 
     [Fact]
-    public async Task Dueno_crea_enlace_y_detalle_muestra_enlace_y_qr()
+    public async Task PadiCreate_sobre_Activa_se_rechaza_sin_doble_cobro()
     {
         using var app = new PadiTestApp();
         var courtId = await CreateCourtWithMondaySchedule(app, "Padi court", new TimeOnly(9, 0), new TimeOnly(12, 0));
         var date = Next(DayOfWeek.Monday);
         using var owner = await Login(app, "padi-owner@example.test");
-
-        Assert.Equal(HttpStatusCode.Redirect, (await CourtFlowTests.Post(owner, "/Bookings/Create",
-            new() { ["courtId"] = courtId.ToString(), ["date"] = date.ToString("yyyy-MM-dd"), ["startTime"] = "09:00" },
-            "/Bookings")).StatusCode);
+        await SeedBooking(app, "padi-owner@example.test", courtId, date);
         var bookingId = await BookingId(app, "padi-owner@example.test", courtId, date);
-
-        var fresh = WebUtility.HtmlDecode(await owner.GetStringAsync($"/Bookings/{bookingId}"));
-        Assert.Contains("Pagar con Padi (demo)", fresh);
 
         var created = await CourtFlowTests.Post(owner, "/Bookings/Mine", new(), $"/Bookings/{bookingId}/Padi");
         Assert.Equal(HttpStatusCode.Redirect, created.StatusCode);
+        Assert.Contains($"/Bookings/{bookingId}", created.Headers.Location!.ToString());
+        Assert.Equal(0L, app.Scalar("SELECT COUNT(*) FROM PadiPayments"));
 
         var detail = WebUtility.HtmlDecode(await owner.GetStringAsync($"/Bookings/{bookingId}"));
-        Assert.Contains("https://padi.test/checkout/link-1", detail);
-        Assert.Contains("https://padi.test/qr/link-1", detail);
-        Assert.Contains("Comprobar estado", detail);
-        Assert.Contains("Pendiente", detail);
-        Assert.Contains("target=\"_blank\"", await owner.GetStringAsync($"/Bookings/{bookingId}"));
+        Assert.Contains("ya tiene pago total", detail);
+        Assert.DoesNotContain("Pagar con Padi", detail);
+    }
+
+    [Fact]
+    public async Task PadiCreate_con_pago_Succeeded_tambien_se_rechaza()
+    {
+        using var app = new PadiTestApp();
+        var courtId = await CreateCourtWithMondaySchedule(app, "Padi succeeded", new TimeOnly(9, 0), new TimeOnly(12, 0));
+        var date = Next(DayOfWeek.Monday);
+        using var owner = await Login(app, "padi-succ@example.test");
+        var bookingId = await SeedBooking(app, "padi-succ@example.test", courtId, date);
+        using (var scope = app.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<RuedaLaBocha.Web.Data.ApplicationDbContext>();
+            db.PadiPayments.Add(new PadiPayment
+            {
+                BookingId = bookingId,
+                PadiLinkId = "link-1",
+                PadiPaymentId = "pay-ok",
+                AmountArs = BookingPolicy.PriceArs,
+                Currency = "ARS",
+                Status = PadiPaymentStatus.Succeeded,
+            });
+            await db.SaveChangesAsync();
+        }
+
+        var created = await CourtFlowTests.Post(owner, "/Bookings/Mine", new(), $"/Bookings/{bookingId}/Padi");
+        Assert.Equal(HttpStatusCode.Redirect, created.StatusCode);
         Assert.Equal(1L, app.Scalar("SELECT COUNT(*) FROM PadiPayments"));
+
+        var detail = WebUtility.HtmlDecode(await owner.GetStringAsync($"/Bookings/{bookingId}"));
+        Assert.Contains("ya tiene pago total", detail);
+    }
+
+    [Fact]
+    public async Task Detail_nacida_de_hold_muestra_Pagado_sin_boton_ni_qr()
+    {
+        using var app = new PadiTestApp();
+        app.Fake.Received.Add(new("pay-ok", "link-1", BookingPolicy.PriceArs, "ARS", "Succeeded"));
+        app.Fake.ById["pay-ok"] = new("pay-ok", "link-1", BookingPolicy.PriceArs, "ARS", "Succeeded");
+        var courtId = await CreateCourtWithMondaySchedule(app, "Padi hold", new TimeOnly(9, 0), new TimeOnly(12, 0));
+        var date = Next(DayOfWeek.Monday);
+        using var owner = await Login(app, "padi-hold@example.test");
+
+        Assert.Equal(HttpStatusCode.Redirect, (await CourtFlowTests.Post(owner, "/Bookings/Mine",
+            new() { ["courtId"] = courtId.ToString(), ["date"] = date.ToString("yyyy-MM-dd"), ["startTime"] = "09:00" },
+            "/Bookings/Holds")).StatusCode);
+        var holdId = Convert.ToInt32(app.Scalar("SELECT Id FROM BookingHolds"));
+        var status = await CourtFlowTests.Post(owner, "/Bookings/Mine", new(), $"/Bookings/Holds/{holdId}/Status");
+        Assert.Equal(HttpStatusCode.OK, status.StatusCode);
+        int bookingId;
+        using (var doc = JsonDocument.Parse(await status.Content.ReadAsStringAsync()))
+        {
+            Assert.True(doc.RootElement.GetProperty("approved").GetBoolean());
+            bookingId = doc.RootElement.GetProperty("bookingId").GetInt32();
+        }
+
+        var detail = WebUtility.HtmlDecode(await owner.GetStringAsync($"/Bookings/{bookingId}"));
+        Assert.Contains("Pagado", detail);
+        Assert.Contains("pay-ok", detail);
+        Assert.Contains("Comprobante en Padi", detail);
+        Assert.Contains("https://padi.test/checkout/link-1", detail);
+        Assert.DoesNotContain("Pagar con Padi", detail);
+        Assert.DoesNotContain("Comprobar estado", detail);
+        Assert.DoesNotContain("qr/link-1", detail);
+    }
+
+    [Fact]
+    public async Task Detail_legacy_Active_sin_hold_no_ofrece_pago()
+    {
+        using var app = new PadiTestApp();
+        var courtId = await CreateCourtWithMondaySchedule(app, "Legacy court", new TimeOnly(9, 0), new TimeOnly(12, 0));
+        var date = Next(DayOfWeek.Monday);
+        using var owner = await Login(app, "padi-legacy@example.test");
+        var bookingId = await SeedBooking(app, "padi-legacy@example.test", courtId, date);
+
+        var detail = WebUtility.HtmlDecode(await owner.GetStringAsync($"/Bookings/{bookingId}"));
+        Assert.Contains("no requiere ni admite otro cobro", detail);
+        Assert.DoesNotContain("Padi", detail);
+        Assert.DoesNotContain("Comprobar estado", detail);
+    }
+
+    [Fact]
+    public async Task Detail_Cancelled_sin_seccion_de_pago()
+    {
+        using var app = new PadiTestApp();
+        var courtId = await CreateCourtWithMondaySchedule(app, "Cancel court", new TimeOnly(9, 0), new TimeOnly(12, 0));
+        var date = Next(DayOfWeek.Monday);
+        using var owner = await Login(app, "padi-cancel@example.test");
+        var bookingId = await SeedBooking(app, "padi-cancel@example.test", courtId, date);
+        Assert.Equal(HttpStatusCode.Redirect,
+            (await CourtFlowTests.Post(owner, "/Bookings/Mine", new(), $"/Bookings/{bookingId}/Cancel")).StatusCode);
+
+        var detail = WebUtility.HtmlDecode(await owner.GetStringAsync($"/Bookings/{bookingId}"));
+        Assert.DoesNotContain("Padi", detail);
+        Assert.DoesNotContain("Cancelar reserva", detail);
     }
 
     [Fact]
@@ -82,11 +171,7 @@ public sealed class PadiDemoTests
         var date = Next(DayOfWeek.Monday);
         using var owner = await Login(app, "padi-dueno@example.test");
         using var other = await Login(app, "padi-otro@example.test");
-
-        Assert.Equal(HttpStatusCode.Redirect, (await CourtFlowTests.Post(owner, "/Bookings/Create",
-            new() { ["courtId"] = courtId.ToString(), ["date"] = date.ToString("yyyy-MM-dd"), ["startTime"] = "09:00" },
-            "/Bookings")).StatusCode);
-        var bookingId = await BookingId(app, "padi-dueno@example.test", courtId, date);
+        var bookingId = await SeedBooking(app, "padi-dueno@example.test", courtId, date);
 
         Assert.Equal(HttpStatusCode.Forbidden,
             (await CourtFlowTests.Post(other, "/Bookings/Mine", new(), $"/Bookings/{bookingId}/Padi")).StatusCode);
@@ -97,82 +182,53 @@ public sealed class PadiDemoTests
     }
 
     [Fact]
-    public async Task Pendiente_nunca_se_muestra_aprobado()
+    public async Task Mine_filtra_por_status_con_enlaces()
     {
         using var app = new PadiTestApp();
-        app.Fake.Received.Add(new("pay-pend", "link-1", 40_000m, "ARS", "Pending"));
-        app.Fake.ById["pay-pend"] = new("pay-pend", "link-1", 40_000m, "ARS", "Pending");
-        var bookingId = await SeedBookingWithLink(app, "padi-pend@example.test");
-
-        using var owner = app.Client();
-        await LoginInto(owner, "padi-pend@example.test");
-        var status = await owner.GetAsync($"/Bookings/{bookingId}/Padi/Status");
-        Assert.Equal(HttpStatusCode.OK, status.StatusCode);
-        using var doc = JsonDocument.Parse(await status.Content.ReadAsStringAsync());
-        Assert.False(doc.RootElement.GetProperty("approved").GetBoolean());
-
-        var detail = WebUtility.HtmlDecode(await owner.GetStringAsync($"/Bookings/{bookingId}"));
-        Assert.Contains(">Pendiente</strong>", detail);
-        Assert.DoesNotContain("Pago aprobado", detail);
-        Assert.Equal(0L, app.Scalar("SELECT Status FROM PadiPayments"));
-    }
-
-    [Theory]
-    [InlineData(1000.0, "ARS")]
-    [InlineData(40000.0, "USD")]
-    public async Task Importe_o_moneda_distintos_no_aprueban(double amountValue, string currency)
-    {
-        var amount = Convert.ToDecimal(amountValue);
-        using var app = new PadiTestApp();
-        app.Fake.Received.Add(new("pay-mal", "link-1", amount, currency, "Succeeded"));
-        app.Fake.ById["pay-mal"] = new("pay-mal", "link-1", amount, currency, "Succeeded");
-        var bookingId = await SeedBookingWithLink(app, $"padi-mal-{amount}-{currency}@example.test");
-
-        using var owner = app.Client();
-        await LoginInto(owner, $"padi-mal-{amount}-{currency}@example.test");
-        var status = await owner.GetAsync($"/Bookings/{bookingId}/Padi/Status");
-        Assert.Equal(HttpStatusCode.OK, status.StatusCode);
-        using var doc = JsonDocument.Parse(await status.Content.ReadAsStringAsync());
-        Assert.False(doc.RootElement.GetProperty("approved").GetBoolean());
-
-        var detail = WebUtility.HtmlDecode(await owner.GetStringAsync($"/Bookings/{bookingId}"));
-        Assert.Contains(">Pendiente</strong>", detail);
-        Assert.DoesNotContain("Pago aprobado", detail);
-        Assert.Equal(0L, app.Scalar("SELECT Status FROM PadiPayments"));
-    }
-
-    [Fact]
-    public async Task Succeeded_con_mismo_enlace_importe_y_moneda_aprueba()
-    {
-        using var app = new PadiTestApp();
-        app.Fake.Received.Add(new("pay-ok", "link-1", 40_000m, "ARS", "Succeeded"));
-        app.Fake.ById["pay-ok"] = new("pay-ok", "link-1", 40_000m, "ARS", "Succeeded");
-        var bookingId = await SeedBookingWithLink(app, "padi-ok@example.test");
-
-        using var owner = app.Client();
-        await LoginInto(owner, "padi-ok@example.test");
-        var status = await owner.GetAsync($"/Bookings/{bookingId}/Padi/Status");
-        Assert.Equal(HttpStatusCode.OK, status.StatusCode);
-        using var doc = JsonDocument.Parse(await status.Content.ReadAsStringAsync());
-        Assert.True(doc.RootElement.GetProperty("approved").GetBoolean());
-
-        var detail = WebUtility.HtmlDecode(await owner.GetStringAsync($"/Bookings/{bookingId}"));
-        Assert.Contains("Aprobado", detail);
-        Assert.Equal(2L, app.Scalar("SELECT Status FROM PadiPayments"));
-    }
-
-    private static async Task<int> SeedBookingWithLink(PadiTestApp app, string email)
-    {
-        var courtId = await CreateCourtWithMondaySchedule(app, $"Padi {email}", new TimeOnly(9, 0), new TimeOnly(12, 0));
+        var courtId = await CreateCourtWithMondaySchedule(app, "Padi filtro", new TimeOnly(9, 0), new TimeOnly(12, 0));
         var date = Next(DayOfWeek.Monday);
-        using var owner = await Login(app, email);
-        Assert.Equal(HttpStatusCode.Redirect, (await CourtFlowTests.Post(owner, "/Bookings/Create",
-            new() { ["courtId"] = courtId.ToString(), ["date"] = date.ToString("yyyy-MM-dd"), ["startTime"] = "09:00" },
-            "/Bookings")).StatusCode);
-        var bookingId = await BookingId(app, email, courtId, date);
+        using var owner = await Login(app, "padi-filtro@example.test");
+        var activeId = await SeedBookingAt(app, "padi-filtro@example.test", courtId, date, new TimeOnly(9, 0));
+        var cancelledId = await SeedBookingAt(app, "padi-filtro@example.test", courtId, date, new TimeOnly(11, 0));
         Assert.Equal(HttpStatusCode.Redirect,
-            (await CourtFlowTests.Post(owner, "/Bookings/Mine", new(), $"/Bookings/{bookingId}/Padi")).StatusCode);
-        return bookingId;
+            (await CourtFlowTests.Post(owner, "/Bookings/Mine", new(), $"/Bookings/{cancelledId}/Cancel")).StatusCode);
+        _ = activeId;
+
+        var todas = WebUtility.HtmlDecode(await owner.GetStringAsync("/Bookings/Mine"));
+        Assert.Contains("09:00", todas);
+        Assert.Contains("11:00", todas);
+        Assert.Contains(">Todas<", todas);
+        Assert.Contains("href=\"/Bookings/Mine?status=Active\"", todas);
+        Assert.Contains("href=\"/Bookings/Mine?status=Cancelled\"", todas);
+        Assert.Equal(1, todas.Split("btn btn-sm btn-primary").Length - 1);
+
+        var activas = WebUtility.HtmlDecode(await owner.GetStringAsync("/Bookings/Mine?status=Active"));
+        Assert.Contains("09:00", activas);
+        Assert.DoesNotContain("11:00", activas);
+        Assert.Contains("Activa", activas);
+        Assert.Equal(1, activas.Split("btn btn-sm btn-primary").Length - 1);
+        Assert.Contains(">Activas<", activas);
+
+        var canceladas = WebUtility.HtmlDecode(await owner.GetStringAsync("/Bookings/Mine?status=Cancelled"));
+        Assert.Contains("11:00", canceladas);
+        Assert.DoesNotContain("09:00", canceladas);
+        Assert.Contains("Cancelada", canceladas);
+        Assert.Equal(1, canceladas.Split("btn btn-sm btn-primary").Length - 1);
+        Assert.Contains(">Canceladas<", canceladas);
+
+        Assert.Equal(HttpStatusCode.BadRequest, (await owner.GetAsync("/Bookings/Mine?status=Bogus")).StatusCode);
+    }
+
+    private static async Task<int> SeedBooking(TestApp app, string email, int courtId, DateOnly date) =>
+        await SeedBookingAt(app, email, courtId, date, new TimeOnly(9, 0));
+
+    private static async Task<int> SeedBookingAt(TestApp app, string email, int courtId, DateOnly date, TimeOnly start)
+    {
+        using var scope = app.Services.CreateScope();
+        var users = scope.ServiceProvider.GetRequiredService<UserManager<IdentityUser>>();
+        var userId = (await users.FindByEmailAsync(email))!.Id;
+        return (await scope.ServiceProvider.GetRequiredService<BookingService>()
+            .CreateAsync(userId, courtId, date, start)).Id;
     }
 
     private static DateOnly Next(DayOfWeek day)

@@ -12,6 +12,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using RuedaLaBocha.Web.Controllers;
 using RuedaLaBocha.Web.Data;
+using RuedaLaBocha.Web.Models;
 
 namespace RuedaLaBocha.Tests;
 
@@ -32,7 +33,7 @@ public class CourtFlowTests
         Assert.Contains("Court One", disponible);
         Assert.Contains("Fútbol 5", WebUtility.HtmlDecode(disponible));
         Assert.Contains("60 minutos", disponible);
-        Assert.Contains("40.000", disponible);
+        Assert.Contains(BookingPolicy.PriceDisplay, disponible);
         Assert.Contains("ARS", disponible);
         response = await Post(admin, "/Courts/Edit/1", new() { ["Name"] = "Court Updated", ["Description"] = "Outdoor", ["IsActive"] = "true" });
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
@@ -269,6 +270,15 @@ internal class TestApp : WebApplicationFactory<HomeController>
         using var command = connection.CreateCommand();
         command.CommandText = sql;
         return Convert.ToInt64(command.ExecuteScalar());
+    }
+
+    internal string? Text(string sql)
+    {
+        using var connection = new SqliteConnection($"Data Source={Database}");
+        connection.Open();
+        using var command = connection.CreateCommand();
+        command.CommandText = sql;
+        return command.ExecuteScalar()?.ToString();
     }
 
     internal byte[] Snapshot()

@@ -28,7 +28,7 @@ public sealed record PadiReceivedPayment(
 
 public interface IPadiClient
 {
-    Task<PadiLink> CreateLinkAsync(decimal amountArs, string title, string? description, CancellationToken ct = default);
+    Task<PadiLink> CreateLinkAsync(decimal amountArs, string title, CancellationToken ct = default, int? ttlMinutes = null);
     Task<IReadOnlyList<PadiReceivedPayment>> ListReceivedPaymentsAsync(int limit = 100, CancellationToken ct = default);
     Task<PadiReceivedPayment?> GetPaymentAsync(string paymentId, CancellationToken ct = default);
 }
@@ -49,16 +49,17 @@ public sealed class PadiClient : IPadiClient
             _http.BaseAddress = new Uri("https://padi.runasp.net/");
     }
 
-    public async Task<PadiLink> CreateLinkAsync(decimal amountArs, string title, string? description, CancellationToken ct = default)
+    // Padi rechaza el campo `description` (400 INVALID_INPUT sobre `$.description`):
+    // el payload lleva solo importe, título, moneda, tipo y TTL.
+    public async Task<PadiLink> CreateLinkAsync(decimal amountArs, string title, CancellationToken ct = default, int? ttlMinutes = null)
     {
         var payload = new
         {
             amount = Math.Round(amountArs, 2),
             title,
             currency = "ARS",
-            description,
             type = "SingleUse",
-            ttlMinutes = _options.TtlMinutes
+            ttlMinutes = ttlMinutes ?? _options.TtlMinutes
         };
 
         using var response = await _http.PostAsJsonAsync("api/v1/integrations/payment-links", payload, ct);

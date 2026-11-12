@@ -17,6 +17,8 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
     public DbSet<PadiPayment> PadiPayments => Set<PadiPayment>();
 
+    public DbSet<BookingHold> BookingHolds => Set<BookingHold>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -43,6 +45,24 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             p.HasOne(x => x.Booking).WithMany().HasForeignKey(x => x.BookingId)
                 .OnDelete(DeleteBehavior.Restrict);
             p.HasIndex(x => x.BookingId).IsUnique();
+        });
+        modelBuilder.Entity<BookingHold>(h =>
+        {
+            h.Property(x => x.UserId).IsRequired().HasMaxLength(450);
+            h.Property(x => x.Currency).IsRequired().HasMaxLength(8);
+            h.Property(x => x.AmountArs).HasColumnType("decimal(18,2)").HasPrecision(18, 2);
+            h.Property(x => x.PadiLinkId).HasMaxLength(64);
+            h.Property(x => x.PadiPaymentId).HasMaxLength(64);
+            h.Property(x => x.CheckoutUrl).HasMaxLength(512);
+            h.Property(x => x.QrCodeUrl).HasMaxLength(512);
+            h.HasOne(x => x.Court).WithMany().HasForeignKey(x => x.CourtId)
+                .OnDelete(DeleteBehavior.Restrict);
+            h.HasOne(x => x.Booking).WithMany().HasForeignKey(x => x.BookingId)
+                .OnDelete(DeleteBehavior.Restrict);
+            h.HasIndex(x => new { x.CourtId, x.Date, x.StartTime })
+                .IsUnique()
+                .HasFilter("Status = 0");
+            h.HasIndex(x => new { x.UserId, x.Date, x.Status });
         });
     }
 }

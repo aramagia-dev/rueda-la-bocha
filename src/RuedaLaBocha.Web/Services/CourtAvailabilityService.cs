@@ -28,6 +28,16 @@ public sealed class CourtAvailabilityService(ApplicationDbContext db) : ICourtAv
             .ToListAsync();
         var takenSet = new HashSet<TimeOnly>(taken);
 
+        // Holds vigentes (no vencidos ni consumidos/liberados) bloquean el slot
+        // 15 minutos hasta cobrarse el total. Vencidos o terminales liberan.
+        var now = DateTime.UtcNow;
+        var held = await db.BookingHolds.AsNoTracking()
+            .Where(h => h.CourtId == courtId && h.Date == date &&
+                h.Status == BookingHoldStatus.Pending && h.ExpiresAtUtc > now)
+            .Select(h => h.StartTime)
+            .ToListAsync();
+        var heldSet = new HashSet<TimeOnly>(held);
+
         var duration = TimeSpan.FromMinutes(BookingPolicy.DurationMinutes);
         var slots = new List<TimeOnly>();
         foreach (var schedule in schedules)
@@ -39,7 +49,7 @@ public sealed class CourtAvailabilityService(ApplicationDbContext db) : ICourtAv
                 var slotStart = TimeOnly.FromTimeSpan(start);
                 var slotEnd = TimeOnly.FromTimeSpan(end);
                 var blocked = closures.Any(closure => closure.StartTime < slotEnd && closure.EndTime > slotStart);
-                if (!blocked && !takenSet.Contains(slotStart)) slots.Add(slotStart);
+                if (!blocked && !takenSet.Contains(slotStart) && !heldSet.Contains(slotStart)) slots.Add(slotStart);
             }
         }
 

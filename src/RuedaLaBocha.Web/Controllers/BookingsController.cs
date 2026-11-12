@@ -35,34 +35,28 @@ public class BookingsController(BookingService bookings, CourtService courts, Co
     [HttpPost("")]
     [HttpPost("Create")]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Create(int courtId, string? date, string? startTime)
+    public IActionResult Create()
     {
-        if (!DateOnly.TryParse(date, out var parsedDate) || !TimeOnly.TryParse(startTime, out var parsedStart))
-            return Content("Selecciona una fecha válida.", "text/plain", System.Text.Encoding.UTF8).WithStatus(400);
-        try
-        {
-            await bookings.CreateAsync(CurrentUserId(), courtId, parsedDate, parsedStart);
-        }
-        catch (BookingNotFoundException ex)
-        {
-            return Content(ex.Message, "text/plain", System.Text.Encoding.UTF8).WithStatus(404);
-        }
-        catch (BookingValidationException ex)
-        {
-            return Content(ex.Message, "text/plain", System.Text.Encoding.UTF8).WithStatus(400);
-        }
-        catch (BookingConflictException)
-        {
-            ViewData["Fecha"] = parsedDate.ToString("yyyy-MM-dd");
-            Response.StatusCode = 409;
-            return View("Conflict");
-        }
-        return RedirectToAction(nameof(Mine));
+        // La reserva solo nace con pago total (holds + Padi): el POST
+        // directo se rechaza sin crear nada.
+        return Content("La reserva se crea solo con pago total; usá el botón Pagar total con Padi (demo).", "text/plain", System.Text.Encoding.UTF8).WithStatus(400);
     }
 
     [HttpGet("Mine")]
     public async Task<IActionResult> Mine(string? status)
     {
+        var now = DateTime.UtcNow;
+        var userId = CurrentUserId();
+        // B4: holds propios Pending aún vigentes, ordenados por vencimiento.
+        // No toca BookingService ni la expiración/Status.
+        ViewBag.PendingHolds = await db.BookingHolds.AsNoTracking().Include(h => h.Court)
+            .Where(h => h.UserId == userId && h.Status == BookingHoldStatus.Pending && h.ExpiresAtUtc > now)
+            .OrderBy(h => h.ExpiresAtUtc).ToListAsync();
+        if (string.Equals(status, nameof(BookingHoldStatus.Pending), StringComparison.OrdinalIgnoreCase))
+        {
+            ViewData["Status"] = nameof(BookingHoldStatus.Pending);
+            return View(new List<Booking>());
+        }
         BookingStatus? parsed = null;
         if (status is not null)
         {
@@ -70,7 +64,8 @@ public class BookingsController(BookingService bookings, CourtService courts, Co
                 return BadRequest("Selecciona una fecha válida.");
             parsed = parsedStatus;
         }
-        return View(await bookings.MineAsync(CurrentUserId(), parsed));
+        ViewData["Status"] = status;
+        return View(await bookings.MineAsync(userId, parsed));
     }
 
     [HttpGet("{id:int}")]
@@ -86,8 +81,10 @@ public class BookingsController(BookingService bookings, CourtService courts, Co
             return Content(ex.Message, "text/plain", System.Text.Encoding.UTF8).WithStatus(403);
         }
         if (booking is null) return NotFound();
-        ViewBag.PadiPayment = await db.PadiPayments.AsNoTracking()
-            .FirstOrDefaultAsync(p => p.BookingId == id);
+        // Origen de la reserva: el hold consumido que la creó al aprobarse
+        // el pago total. Sin hold es legacy directa (sin pago asociado).
+        ViewBag.Hold = await db.BookingHolds.AsNoTracking()
+            .FirstOrDefaultAsync(h => h.BookingId == id && h.Status == BookingHoldStatus.Consumed);
         return View(booking);
     }
 

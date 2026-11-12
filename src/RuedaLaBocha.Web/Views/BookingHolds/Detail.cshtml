@@ -1,0 +1,83 @@
+@model BookingHold
+@{
+    ViewData["Title"] = "Pagar reserva con Padi (demo)";
+    var estado = Model.Status switch
+    {
+        BookingHoldStatus.Pending => "Pendiente de pago",
+        BookingHoldStatus.Consumed => "Pagado",
+        BookingHoldStatus.Released => "Liberado",
+        _ => Model.Status.ToString(),
+    };
+    var vencido = Model.Status == BookingHoldStatus.Pending && Model.IsExpired(DateTime.UtcNow);
+}
+<div class="page-heading"><p class="eyebrow">PADI DEMO</p><h1>Pagar reserva con Padi</h1></div>
+<dl class="management-panel p-4 mb-4">
+    <dt>Cancha</dt><dd>@Model.Court.Name</dd>
+    <dt>Fecha</dt><dd>@Model.Date.ToString("dd/MM/yyyy")</dd>
+    <dt>Horario</dt><dd>@Model.StartTime.ToString("HH:mm") - @Model.EndTime.ToString("HH:mm")</dd>
+    <dt>Importe total</dt><dd>ARS @Model.AmountArs.ToString("N0", System.Globalization.CultureInfo.GetCultureInfo("es-AR")) (lo fija el servidor)</dd>
+    <dt>Estado</dt><dd><strong data-hold-estado>@estado</strong></dd>
+    @if (Model.Status == BookingHoldStatus.Pending && !vencido)
+    {
+        <dt>Vence</dt><dd>El turno queda bloqueado 15 minutos hasta @Model.ExpiresAtUtc.ToLocalTime().ToString("HH:mm")</dd>
+    }
+</dl>
+@if (TempData["HoldError"] is string holdError)
+{
+    <p class="alert alert-warning" role="alert">@holdError</p>
+}
+@if (Model.Status == BookingHoldStatus.Consumed && Model.BookingId.HasValue)
+{
+    <p class="alert alert-success">Pago aprobado. Tu reserva #@Model.BookingId quedó creada (sin dinero real, sandbox). <a asp-controller="Bookings" asp-action="Detail" asp-route-id="@Model.BookingId">Ver reserva</a></p>
+}
+else if (Model.Status == BookingHoldStatus.Released || vencido)
+{
+    <p class="alert alert-warning" role="alert">Este turno quedó liberado (@(vencido ? "venció la espera de 15 minutos" : "pago rechazado o cancelado")). No se creó ninguna reserva. <a asp-controller="Reservas" asp-action="Index" asp-route-fecha="@Model.Date.ToString("yyyy-MM-dd")">Volver a consultar</a></p>
+}
+else if (Model.PadiLinkId is not null)
+{
+    <section class="management-panel p-4 mb-4" aria-label="Pago con Padi (demo)">
+        <h2 class="h5">Pago con Padi (demo)</h2>
+        <p>Importe: ARS @Model.AmountArs.ToString("N0", System.Globalization.CultureInfo.GetCultureInfo("es-AR")) (lo fija el servidor)</p>
+        <p><a href="@Model.CheckoutUrl" target="_blank" rel="noopener">Pagar en Padi</a></p>
+        @if (!string.IsNullOrEmpty(Model.QrCodeUrl))
+        {
+            <p><img src="@Model.QrCodeUrl" alt="Código QR para pagar la reserva con Padi" width="200" height="200" /></p>
+        }
+        <form method="post" action="/Bookings/Holds/@Model.Id/Status" data-hold-check class="mb-0">
+            @Html.AntiForgeryToken()
+            <button class="btn btn-outline-primary" type="submit">Comprobar estado</button>
+        </form>
+    </section>
+    <script>
+    (function () {
+        var form = document.querySelector('[data-hold-check]');
+        if (!form) return;
+        var estado = document.querySelector('[data-hold-estado]');
+        var timer = null;
+        function texto(s) {
+            return { Pending: 'Pendiente de pago', Consumed: 'Pagado', Released: 'Liberado' }[s] || s;
+        }
+        function consultar() {
+            fetch(form.action, { method: 'POST', body: new FormData(form), headers: { 'Accept': 'application/json' } }).then(function (r) { return r.json(); }).then(function (d) {
+                if (d.approved) { window.location.reload(); return; }
+                if (estado && d.status) estado.textContent = texto(d.status);
+                if (d.status === 'Pending' && !timer) timer = setInterval(consultar, 5000);
+                else if (timer && d.status !== 'Pending') { clearInterval(timer); timer = null; }
+            }).catch(function () {});
+        }
+        form.addEventListener('submit', function (e) { e.preventDefault(); consultar(); });
+        // Auto-check al abrir el detalle: si el usuario cerró la página tras
+        // pagar, la reapertura confirma la reserva sin otro clic.
+        consultar();
+    })();
+    </script>
+}
+else
+{
+    <form method="post" action="/Bookings/Holds/@Model.Id/Link" class="mb-3">
+        @Html.AntiForgeryToken()
+        <button class="btn btn-primary" type="submit">Reintentar enlace de pago</button>
+    </form>
+}
+<a asp-controller="Reservas" asp-action="Index">Volver a reservas</a>

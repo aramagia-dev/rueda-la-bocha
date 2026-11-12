@@ -47,46 +47,21 @@ public class PadiPaymentsController(
             return RedirectToAction("Detail", "Bookings", new { id = bookingId });
         }
 
-        var payment = await db.PadiPayments.FirstOrDefaultAsync(p => p.BookingId == bookingId, ct);
-        if (payment?.PadiLinkId is not null)
-            return RedirectToAction("Detail", "Bookings", new { id = bookingId });
-
-        payment ??= new PadiPayment
+        // La reserva solo nace con pago total (hold consumido) o es legacy
+        // sin cobro habilitado: generar un enlace sería un doble cobro.
+        // Se rechaza sin crear ni mutar nada.
+        var succeeded = await db.PadiPayments.AsNoTracking()
+            .AnyAsync(p => p.BookingId == bookingId && p.Status == PadiPaymentStatus.Succeeded, ct);
+        var paidByHold = await db.BookingHolds.AsNoTracking()
+            .AnyAsync(h => h.BookingId == bookingId && h.Status == BookingHoldStatus.Consumed, ct);
+        if (succeeded || paidByHold || booking.Status == BookingStatus.Active)
         {
-            BookingId = bookingId,
-            AmountArs = booking.PriceArs,
-            Currency = "ARS",
-            Status = PadiPaymentStatus.Pending,
-            CreatedAtUtc = DateTime.UtcNow,
-            UpdatedAtUtc = DateTime.UtcNow,
-        };
-        if (payment.Id == 0)
-        {
-            db.PadiPayments.Add(payment);
-            await db.SaveChangesAsync(ct);
-        }
-
-        PadiLink link;
-        try
-        {
-            link = await padi.CreateLinkAsync(
-                payment.AmountArs,
-                $"Reserva #{bookingId} — Rueda la Bocha",
-                $"Seña reserva #{bookingId}",
-                ct);
-        }
-        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
-        {
-            logger.LogWarning(ex, "Padi demo: no se pudo crear el enlace para la reserva {BookingId}; queda pendiente", bookingId);
-            TempData["PadiError"] = "No se pudo crear el enlace de pago (demo). Probá más tarde con Comprobar estado.";
+            TempData["PadiError"] = "Esta reserva ya tiene pago total; no se genera otro cobro (demo).";
             return RedirectToAction("Detail", "Bookings", new { id = bookingId });
         }
 
-        payment.PadiLinkId = link.Id;
-        payment.CheckoutUrl = link.CheckoutUrl;
-        payment.QrCodeUrl = link.QrCodeUrl;
-        payment.UpdatedAtUtc = DateTime.UtcNow;
-        await db.SaveChangesAsync(ct);
+        // Sin enlace nuevo: solo se informa el rechazo (arriba). El flujo
+        // viejo de seña queda deshabilitado por B3.
         return RedirectToAction("Detail", "Bookings", new { id = bookingId });
     }
 

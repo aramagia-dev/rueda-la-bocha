@@ -9,25 +9,26 @@
 {
     <div class="management-panel p-4 mb-4">
         <dl><dt>Cancha</dt><dd>@court.Name</dd><dt>Fecha</dt><dd>@date.Value.ToString("dd/MM/yyyy")</dd><dt>Horario</dt><dd>@start.Value.ToString("HH:mm") - @start.Value.AddMinutes(BookingPolicy.DurationMinutes).ToString("HH:mm")</dd><dt>Precio</dt><dd>@BookingPolicy.PriceDisplay</dd></dl>
-        <form method="post" asp-action="Create">
+        <p class="text-muted mt-2 mb-0">La reserva se crea solo con pago total.</p>
+        <a class="btn btn-outline-primary" asp-controller="Reservas" asp-action="Index" asp-route-fecha="@date.Value.ToString("yyyy-MM-dd")">Volver a consultar</a>
+        <form method="post" action="/Bookings/Holds" class="mt-3">
+            @Html.AntiForgeryToken()
             <input type="hidden" name="courtId" value="@court.Id" />
             <input type="hidden" name="date" value="@date.Value.ToString("yyyy-MM-dd")" />
             <input type="hidden" name="startTime" value="@start.Value.ToString("HH:mm")" />
-            <button class="btn btn-primary" type="submit">Confirmar reserva</button>
-            <a class="btn btn-outline-primary" asp-controller="Reservas" asp-action="Index" asp-route-fecha="@date.Value.ToString("yyyy-MM-dd")">Volver a consultar</a>
+            <button class="btn btn-outline-primary" type="submit">Pagar total con Padi (demo)</button>
+            <p class="text-muted mt-2 mb-0">Bloquea el turno 15 minutos; la reserva se crea solo si se aprueba el pago total.</p>
         </form>
     </div>
 }
 else
 {
-<form method="post" asp-action="Create" class="management-panel p-4 mb-4">
-    <label for="courtId" class="form-label">Cancha</label>
-    <input id="courtId" name="courtId" type="number" min="1" class="form-control mb-3" required />
-    <label for="date" class="form-label">Fecha</label>
-    <input id="date" name="date" type="date" class="form-control mb-3" required />
-    <label for="startTime" class="form-label">Horario de inicio</label>
-    <input id="startTime" name="startTime" type="time" step="3600" class="form-control mb-3" required />
-    <button class="btn btn-primary" type="submit">Confirmar reserva</button>
+<form method="get" action="/Reservas" class="management-panel p-4 mb-4">
+    @Html.AntiForgeryToken()
+    <p>La reserva se crea solo con pago total. Elegí el turno en el calendario para pagar con Padi (demo).</p>
+    <label for="fecha" class="form-label">Fecha</label>
+    <input id="fecha" name="fecha" type="date" class="form-control mb-3" required />
+    <button class="btn btn-primary" type="submit">Ver canchas</button>
 </form>
 }
 <a asp-action="Mine">Ver mis reservas</a>

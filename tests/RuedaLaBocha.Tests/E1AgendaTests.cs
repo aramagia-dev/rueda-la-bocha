@@ -28,7 +28,7 @@ public sealed class E1AgendaTests
         Assert.DoesNotContain(">Reservar<", html);
         Assert.DoesNotContain("href=\"/Courts\"", html);
         Assert.Contains("SEÑA ONLINE", html);
-        Assert.Contains("no hay pagos implementados", html);
+        Assert.Contains("La reserva se confirma cuando la seña queda aprobada", html);
         Assert.DoesNotContain("/Payments", html);
         Assert.Contains(">Inicio<", html);
         Assert.Contains("action=\"/Reservas\"", html);

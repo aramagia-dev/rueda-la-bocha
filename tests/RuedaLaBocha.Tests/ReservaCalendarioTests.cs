@@ -92,21 +92,24 @@ public sealed class ReservaCalendarioTests
 
         using var owner = await Login(app, "confirm@example.test");
         var confirm = await owner.GetStringAsync($"/Bookings/Create?courtId={courtId}&date={monday:yyyy-MM-dd}&startTime=09:00");
-        Assert.Contains("Confirmar reserva", confirm);
-        Assert.Contains("40.000", confirm);
+        Assert.Contains("Pagar total con Padi (demo)", confirm);
+        Assert.Contains(BookingPolicy.PriceDisplay, confirm);
         Assert.Contains("__RequestVerificationToken", confirm);
+        Assert.DoesNotContain(">Confirmar reserva</button>", confirm);
 
+        // B3: el POST directo se rechaza sin crear nada (ni siquiera 409).
+        var before = app.Snapshot();
         var created = await CourtFlowTests.Post(owner, "/Bookings/Create",
             new() { ["courtId"] = courtId.ToString(), ["date"] = monday.ToString("yyyy-MM-dd"), ["startTime"] = "09:00" }, "/Bookings");
-        Assert.Equal(HttpStatusCode.Redirect, created.StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, created.StatusCode);
+        Assert.Contains("pago total", await created.Content.ReadAsStringAsync());
+        Assert.Equal(0L, app.Scalar("SELECT COUNT(*) FROM Bookings"));
+        Assert.Equal(before, app.Snapshot());
 
         var conflict = await CourtFlowTests.Post(owner, "/Bookings/Create",
             new() { ["courtId"] = courtId.ToString(), ["date"] = monday.ToString("yyyy-MM-dd"), ["startTime"] = "09:00" }, "/Bookings");
-        Assert.Equal(HttpStatusCode.Conflict, conflict.StatusCode);
-        var conflictHtml = await conflict.Content.ReadAsStringAsync();
-        Assert.Contains("ya fue reservado", conflictHtml);
-        Assert.Contains($"/Reservas?fecha={monday:yyyy-MM-dd}", conflictHtml);
-        Assert.Contains("Volver a consultar", conflictHtml);
+        Assert.Equal(HttpStatusCode.BadRequest, conflict.StatusCode);
+        Assert.Equal(before, app.Snapshot());
     }
 
     [Fact]
