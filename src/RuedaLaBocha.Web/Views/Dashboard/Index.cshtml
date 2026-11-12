@@ -1,0 +1,132 @@
+@model DashboardViewModel
+@{
+    ViewData["Title"] = "Panel";
+    var ar = System.Globalization.CultureInfo.GetCultureInfo("es-AR");
+    string Ars(decimal v) => "ARS " + v.ToString("N0", ar);
+    var iso = Model.Selected.ToString("yyyy-MM-dd");
+}
+<div class="page-heading section-heading">
+    <div><p class="eyebrow">ADMINISTRACIÓN</p><h1>Panel</h1><p class="text-muted">Recaudación, ocupación y reservas del @Model.Selected.ToString("dd/MM/yyyy").</p></div>
+    <div class="table-actions">
+        <a class="btn btn-outline-primary" asp-controller="Courts" asp-action="Manage">Administrar canchas</a>
+        <a class="btn btn-outline-primary" asp-controller="AdminBookings" asp-action="Index">Todas las reservas</a>
+    </div>
+</div>
+@if (Model.Notice is not null)
+{
+    <p class="alert alert-warning">@Model.Notice</p>
+}
+<div class="detail-grid" style="margin-top:0">
+    <article><p class="eyebrow">RECAUDACIÓN DEL DÍA</p><h2>@Ars(Model.DayRevenue)</h2><p>Suma de reservas activas del día.</p></article>
+    <article><p class="eyebrow">RECAUDACIÓN DEL MES</p><h2>@Ars(Model.MonthRevenue)</h2><p>Suma de reservas activas del mes.</p></article>
+    <article><p class="eyebrow">RECAUDACIÓN DEL AÑO</p><h2>@Ars(Model.YearRevenue)</h2><p>Suma de reservas activas del año.</p></article>
+    <article><p class="eyebrow">OCUPACIÓN DEL DÍA</p><h2>@Model.OccupancyPercent %</h2><p>@Model.OccupiedSlots de @Model.OfferedSlots turnos ocupados.</p></article>
+    <article><p class="eyebrow">PAGOS PENDIENTES</p><h2>@Model.PendingHolds</h2><p>Pagos pendientes por cobrar.</p></article>
+    <article><p class="eyebrow">CANCELADAS</p><h2>@Model.CancelledBookings</h2><p>Reservas canceladas en total.</p></article>
+</div>
+<div class="e1-layout" style="margin-top:2rem">
+    <div class="e1-cal">
+        <h2 id="cal-titulo">Elegí el día</h2>
+        <div id="vc-calendario" class="vc-encaje" data-selected="@iso"></div>
+        <form method="get" class="vc-fallback">
+            <label for="date">Fecha</label>
+            <input type="date" id="date" name="date" value="@iso" required />
+            <button type="submit" class="btn btn-primary btn-sm">Ver día</button>
+        </form>
+    </div>
+    <section aria-labelledby="dia-titulo" id="panel-dia">
+        <h2 id="dia-titulo">Reservas del @Model.Selected.ToString("dd/MM/yyyy")</h2>
+        @if (Model.DayBookings.Count == 0)
+        {
+            <p class="empty-state">No hay reservas para este día.</p>
+        }
+        else
+        {
+            <div class="management-panel"><div class="table-responsive" role="region" aria-label="Reservas del día" tabindex="0">
+                <table class="table court-table align-middle mb-0">
+                    <thead><tr><th scope="col">Cancha</th><th scope="col">Hora</th><th scope="col">Usuario</th><th scope="col">Importe</th><th scope="col">Estado</th></tr></thead>
+                    <tbody>
+                    @foreach (var b in Model.DayBookings)
+                    {
+                        <tr>
+                            <th scope="row">@b.CourtName</th>
+                            <td>@b.StartTime.ToString("HH:mm") - @b.EndTime.ToString("HH:mm")</td>
+                            <td>@b.UserId</td>
+                            <td>@Ars(b.PriceArs)</td>
+                            <td><span class="status-badge @(b.Status == BookingStatus.Active ? "status-active" : "status-inactive")">@b.Status</span></td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div></div>
+        }
+    </section>
+</div>
+<h2>Desglose por cancha</h2>
+<div class="management-panel"><div class="table-responsive" role="region" aria-label="Recaudación por cancha" tabindex="0">
+    <table class="table court-table align-middle mb-0">
+        <thead><tr><th scope="col">Cancha</th><th scope="col">Reservas del día</th><th scope="col">Recaudación del día</th></tr></thead>
+        <tbody>
+        @foreach (var row in Model.ByCourt)
+        {
+            <tr><th scope="row">@row.Name</th><td>@row.DayBookings</td><td>@Ars(row.DayRevenue)</td></tr>
+        }
+        </tbody>
+    </table>
+</div></div>
+<h2 style="margin-top:2rem" id="panel-activas">Todas las activas (@Model.ActiveBookings.Count)</h2>
+@if (Model.ActiveBookings.Count == 0)
+{
+    <p class="empty-state">No hay reservas activas.</p>
+}
+else
+{
+    <div class="management-panel"><div class="table-responsive" role="region" aria-label="Todas las reservas activas" tabindex="0">
+        <table class="table court-table align-middle mb-0">
+            <thead><tr><th scope="col">Fecha</th><th scope="col">Cancha</th><th scope="col">Hora</th><th scope="col">Importe</th></tr></thead>
+            <tbody>
+            @foreach (var b in Model.ActiveBookings)
+            {
+                <tr>
+                    <th scope="row">@b.Date.ToString("dd/MM/yyyy")</th>
+                    <td>@b.Court.Name</td>
+                    <td>@b.StartTime.ToString("HH:mm")</td>
+                    <td>@Ars(b.PriceArs)</td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div></div>
+}
+@section Scripts {
+<link rel="stylesheet" href="~/lib/vanilla-calendar-pro/vanilla-calendar-pro.css" asp-append-version="true" />
+<script src="~/lib/vanilla-calendar-pro/vanilla-calendar-pro.js" asp-append-version="true"></script>
+<script>
+(function () {
+    var host = document.getElementById('vc-calendario');
+    var fallback = document.querySelector('.vc-fallback');
+    if (host && window.VanillaCalendarPro) {
+        var sel = host.getAttribute('data-selected');
+        var parts = sel.split('-');
+        var calendar = new VanillaCalendarPro.Calendar(host, {
+            type: 'default',
+            locale: 'es',
+            firstWeekday: 1,
+            selectionDatesMode: 'single',
+            selectedDates: sel ? [sel] : [],
+            selectedMonth: parseInt(parts[1], 10) - 1,
+            selectedYear: parseInt(parts[0], 10),
+            selectedTheme: 'light',
+            onClickDate: function (self, event) {
+                var btn = event.target && event.target.closest ? event.target.closest('[data-vc-date-btn]') : null;
+                var day = btn ? btn.closest('[data-vc-date]') : null;
+                var iso = day ? day.getAttribute('data-vc-date') : null;
+                if (iso) window.location.href = '/Admin/Dashboard?date=' + encodeURIComponent(iso);
+            }
+        });
+        calendar.init();
+        if (fallback) fallback.hidden = true;
+    }
+})();
+</script>
+}

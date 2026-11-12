@@ -113,7 +113,12 @@ img { max-width: 100%; }
 .hero-confirm { display: flex; align-items: center; gap: .6rem; color: var(--green); font-weight: 650; margin-bottom: 0; }
 .payments-note { border: 1px dashed #b8cdbd; background: #fff; border-radius: 12px; padding: .9rem 1.1rem; margin-bottom: 1.5rem; }
 .e1-layout { display: grid; grid-template-columns: minmax(0, 380px) minmax(0, 1fr); gap: 2rem; align-items: start; margin-bottom: 2rem; }
-.e1-cal { background: #fff; border: 1px solid var(--line); border-radius: 20px; padding: 1.5rem; }
+.e1-cal { background: #fff; border: 1px solid var(--line); border-radius: 20px; padding: 1.5rem; min-width: 0; max-width: 100%; }
+.e1-layout > * { min-width: 0; }
+#panel-dia { min-width: 0; max-width: 100%; }
+#vc-calendario, .vc-encaje { width: 100%; max-width: 100%; }
+.management-panel { min-width: 0; max-width: 100%; }
+.management-panel > .table-responsive { max-width: 100%; }
 .e1-cal .vc-encaje { margin-bottom: 1rem; }
 .e1-acordeon { display: grid; gap: 1rem; }
 .e1-court-title { margin: 0; }
