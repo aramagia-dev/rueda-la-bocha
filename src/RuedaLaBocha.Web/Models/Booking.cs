@@ -20,6 +20,8 @@ public sealed class Booking
 
     public BookingStatus Status { get; set; }
 
+    public Guid? GroupId { get; set; }
+
     public DateTime CreatedAtUtc { get; set; }
 
     public DateTime? CancelledAtUtc { get; set; }

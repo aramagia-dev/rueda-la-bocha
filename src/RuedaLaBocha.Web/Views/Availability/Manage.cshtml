@@ -8,10 +8,17 @@
     <p class="eyebrow">ADMINISTRACIÓN</p><h1>Horarios y bloqueos</h1>
     <p class="text-muted">@Model.Court.Name · Horarios locales del complejo. Los turnos duran @BookingPolicy.DurationMinutes minutos.</p>
     @if (!Model.Court.IsActive) { <p class="alert alert-warning">La cancha está inactiva: puedes configurar horarios, pero no se publica su disponibilidad.</p> }
+    @if (TempData["TemplateMessage"] is string templateMessage) { <p class="alert alert-success">@templateMessage</p> }
+    @if (TempData["TemplateError"] is string templateError) { <p class="alert alert-danger">@templateError</p> }
     <a asp-controller="Courts" asp-action="Manage">Volver a administrar canchas</a>
 </div>
 <section class="mb-5" aria-labelledby="weekly-title">
-    <div class="section-heading"><h2 id="weekly-title">Horario semanal</h2><a class="btn btn-primary" asp-action="Schedule" asp-route-courtId="@Model.Court.Id">Agregar horario</a></div>
+    <div class="section-heading"><h2 id="weekly-title">Horario semanal</h2><div><a class="btn btn-primary" asp-action="Schedule" asp-route-courtId="@Model.Court.Id">Agregar horario</a></div></div>
+    <form asp-action="ApplyTemplate" asp-route-courtId="@Model.Court.Id" method="post" class="management-panel p-3 mb-3" onsubmit="return @(Model.Schedules.Count == 0 ? "true" : "confirm('The Mon-Fri 08:00-13:00, 16:00-23:00 template will be added. Continue?')")">
+        <span class="text-muted">Weekly template: Mon-Fri 08:00-13:00, 16:00-23:00.</span>
+        <label class="ms-3"><input type="checkbox" name="replace" value="true" /> Replace existing schedules</label>
+        <button class="btn btn-outline-primary btn-sm ms-2" type="submit">Apply weekly template</button>
+    </form>
     @if (Model.Schedules.Count == 0) { <p class="empty-state">No hay horarios configurados. Agrega al menos un intervalo para generar turnos.</p> }
     else
     {

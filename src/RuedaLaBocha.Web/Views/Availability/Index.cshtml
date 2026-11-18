@@ -1,6 +1,6 @@
 @model CourtAvailabilityViewModel
 @{ ViewData["Title"] = "Consultar disponibilidad"; }
-<div class="page-heading"><p class="eyebrow">DISPONIBILIDAD</p><h1>@Model.Court.Name</h1><p class="text-muted">Consulta turnos de @BookingPolicy.DurationMinutes minutos según los horarios y bloqueos del complejo.</p><partial name="_CourtPolicy" /></div>
+<div class="page-heading"><p class="eyebrow">DISPONIBILIDAD</p><h1>@Model.Court.Name</h1><p class="text-muted">Consulta turnos de @BookingPolicy.DurationMinutes minutos según los horarios y bloqueos del complejo.</p><partial name="_CourtPolicy" /><p class="text-muted">Hourly price: @BookingPolicy.PriceDisplay. Promo Mon-Thu: 3 contiguous hours for ARS 45.000 total.</p></div>
 <form method="get" asp-action="Index" class="management-panel p-4 mb-4">
     <input type="hidden" name="courtId" value="@Model.Court.Id" />
     <label for="date" class="form-label">Fecha</label>
@@ -9,12 +9,103 @@
 </form>
 <section aria-labelledby="slots-title">
     <h2 id="slots-title">Turnos del @Model.Date.ToString("dd/MM/yyyy")</h2>
-    @if (Model.StartTimes.Count == 0)
+    @if (Model.Slots.Count == 0)
     { <p class="empty-state">No hay turnos disponibles para esta fecha. Prueba con otro día.</p> }
     else
     {
-        <ul class="list-group mb-3">@foreach (var start in Model.StartTimes)
-        { <li class="list-group-item">@start.ToString("HH:mm") - @start.AddMinutes(BookingPolicy.DurationMinutes).ToString("HH:mm")</li> }</ul>
+        @if (Model.StartTimes.Count == 0)
+        { <p class="empty-state">No hay turnos disponibles para esta fecha. Prueba con otro día.</p> }
+        <p class="text-muted">Tocá los turnos libres para elegirlos. Deben ser contiguos (ej. 19:00 y 20:00).</p>
+        <div class="slot-grid mb-3" role="list">
+            @foreach (var slot in Model.Slots)
+            {
+                var css = slot.State switch
+                {
+                    SlotState.Free => "slot-free",
+                    SlotState.Taken => "slot-taken",
+                    _ => "slot-blocked",
+                };
+                var label = slot.State switch
+                {
+                    SlotState.Free => "Libre",
+                    SlotState.Taken => "Ocupado",
+                    _ => "Bloqueado",
+                };
+                if (slot.State == SlotState.Free)
+                {
+                    <button type="button" class="slot @css slot-selectable" role="listitem" data-start="@slot.Start.ToString("HH:mm")" aria-pressed="false" aria-label="@slot.Start.ToString("HH:mm") - @slot.End.ToString("HH:mm") Libre, tocar para elegir">
+                        <span class="slot-time">@slot.Start.ToString("HH:mm") - @slot.End.ToString("HH:mm")</span>
+                        <span class="slot-state">@label</span>
+                        <span class="slot-price">@BookingPolicy.PriceDisplay</span>
+                    </button>
+                }
+                else
+                {
+                    <div class="slot @css slot-disabled" role="listitem" aria-disabled="true" aria-label="@slot.Start.ToString("HH:mm") - @slot.End.ToString("HH:mm") @label">
+                        <span class="slot-time">@slot.Start.ToString("HH:mm") - @slot.End.ToString("HH:mm")</span>
+                        <span class="slot-state">@label</span>
+                    </div>
+                }
+            }
+        </div>
+        <ul class="slot-legend list-inline mb-3">
+            <li class="list-inline-item"><span class="legend-box slot-free"></span> Libre</li>
+            <li class="list-inline-item"><span class="legend-box slot-taken"></span> Ocupado</li>
+            <li class="list-inline-item"><span class="legend-box slot-blocked"></span> Bloqueado</li>
+        </ul>
+        <form method="get" asp-controller="Bookings" asp-action="Summary" id="slot-picker" class="management-panel p-4 mb-3">
+            <input type="hidden" name="courtId" value="@Model.Court.Id" />
+            <input type="hidden" name="date" value="@Model.Date.ToString("yyyy-MM-dd")" />
+            <input type="hidden" name="startTime" id="picker-start" value="" />
+            <input type="hidden" name="hours" id="picker-hours" value="1" />
+            <p class="mb-2" id="picker-status" aria-live="polite">Elegí al menos un turno libre.</p>
+            <p class="text-danger d-none" id="picker-error">Los horarios elegidos deben estar libres y ser contiguos.</p>
+            <button class="btn btn-success" type="submit" id="picker-submit" disabled>Elegir turnos</button>
+        </form>
+        <style>
+            .slot-selectable { cursor: pointer; text-align: left; }
+            .slot-selectable.selected { outline: 3px solid var(--green); background: #eef7ee; }
+            .slot-disabled { opacity: .75; }
+        </style>
+        <script>
+            (function () {
+                var buttons = Array.from(document.querySelectorAll('.slot-selectable'));
+                var start = document.getElementById('picker-start');
+                var hours = document.getElementById('picker-hours');
+                var submit = document.getElementById('picker-submit');
+                var status = document.getElementById('picker-status');
+                var error = document.getElementById('picker-error');
+                function toMinutes(t) { var p = t.split(':'); return (+p[0]) * 60 + (+p[1]); }
+                function refresh() {
+                    var chosen = buttons.filter(function (b) { return b.classList.contains('selected'); })
+                        .map(function (b) { return b.dataset.start; }).sort();
+                    if (chosen.length === 0) {
+                        submit.disabled = true; error.classList.add('d-none');
+                        status.textContent = 'Elegí al menos un turno libre.';
+                        start.value = ''; hours.value = '1'; return;
+                    }
+                    var ok = true;
+                    for (var i = 1; i < chosen.length; i++) {
+                        if (toMinutes(chosen[i]) - toMinutes(chosen[i - 1]) !== @BookingPolicy.DurationMinutes) { ok = false; break; }
+                    }
+                    if (!ok) {
+                        submit.disabled = true; error.classList.remove('d-none');
+                        status.textContent = chosen.length + ' turno(s) elegidos: deben ser contiguos.';
+                        return;
+                    }
+                    error.classList.add('d-none'); submit.disabled = false;
+                    start.value = chosen[0]; hours.value = String(chosen.length);
+                    status.textContent = chosen.length + ' turno(s) elegidos desde las ' + chosen[0] + '.';
+                }
+                buttons.forEach(function (b) {
+                    b.addEventListener('click', function () {
+                        b.classList.toggle('selected');
+                        b.setAttribute('aria-pressed', b.classList.contains('selected') ? 'true' : 'false');
+                        refresh();
+                    });
+                });
+            })();
+        </script>
     }
     <p class="text-muted">Horarios locales del complejo. Esta consulta no confirma una reserva; la integración con reservas se realiza en su módulo.</p>
 </section>

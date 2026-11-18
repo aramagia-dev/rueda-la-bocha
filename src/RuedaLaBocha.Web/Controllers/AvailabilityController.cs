@@ -16,7 +16,9 @@ public class AvailabilityController(CourtService courts, CourtScheduleService ho
         if (court is null || !court.IsActive) return NotFound();
         if (!ModelState.IsValid) return BadRequest("Selecciona una fecha válida.");
         var selected = date ?? DateOnly.FromDateTime(DateTime.Today);
-        return View(new CourtAvailabilityViewModel(court, selected, await availability.GetAvailableStartTimesAsync(courtId, selected)));
+        var slots = await availability.GetDailySlotsAsync(courtId, selected);
+        var free = slots.Where(slot => slot.State == SlotState.Free).Select(slot => slot.Start).ToList();
+        return View(new CourtAvailabilityViewModel(court, selected, free, slots));
     }
 
     public async Task<IActionResult> Manage(int courtId)
@@ -97,6 +99,28 @@ public class AvailabilityController(CourtService courts, CourtScheduleService ho
             ModelState.AddModelError("", "El bloqueo se superpone con otro de esta fecha.");
             return View(form);
         }
+        return RedirectToAction(nameof(Manage), new { courtId });
+    }
+
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> ApplyTemplate(int courtId, bool replace = false)
+    {
+        try
+        {
+            await hours.ApplyWeeklyTemplateAsync(courtId, replace: replace);
+        }
+        catch (KeyNotFoundException)
+        {
+            return NotFound();
+        }
+        catch (InvalidOperationException)
+        {
+            TempData["TemplateError"] = "The weekly template overlaps an existing interval. Use replace to overwrite it.";
+            return RedirectToAction(nameof(Manage), new { courtId });
+        }
+        TempData["TemplateMessage"] = replace
+            ? "Weekly template applied (Mon-Fri 08:00-13:00, 16:00-23:00), replacing existing schedules."
+            : "Weekly template applied (Mon-Fri 08:00-13:00, 16:00-23:00).";
         return RedirectToAction(nameof(Manage), new { courtId });
     }
 

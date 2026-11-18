@@ -1,0 +1,94 @@
+@model RuedaLaBocha.Web.Models.Payment
+
+@{
+    ViewData["Title"] = "Payment result";
+    var isApproved = Model.Status == RuedaLaBocha.Web.Models.PaymentStatus.Approved;
+    var isPending = Model.Status is RuedaLaBocha.Web.Models.PaymentStatus.Pending or RuedaLaBocha.Web.Models.PaymentStatus.InProcess;
+    var badge = Model.Status switch
+    {
+        RuedaLaBocha.Web.Models.PaymentStatus.Approved => "bg-success",
+        RuedaLaBocha.Web.Models.PaymentStatus.Pending or RuedaLaBocha.Web.Models.PaymentStatus.InProcess => "bg-warning text-dark",
+        _ => "bg-danger",
+    };
+}
+
+<h1>Payment result</h1>
+
+<div class="card col-md-6">
+    <div class="card-body">
+        <h5 class="card-title">
+            Reservation @Model.ReservaId
+            <span class="badge @badge">@Model.Status</span>
+        </h5>
+        @if (isApproved)
+        {
+            <div class="alert alert-success mt-3" role="alert">
+                <strong>Payment confirmed — reservation confirmed.</strong>
+                <span class="d-block">Your deposit was received. (Final reservation status transition is pending — TODO Franco: Reserva.Estado → Confirmada.)</span>
+            </div>
+        }
+        <dl class="row mt-3">
+            <dt class="col-sm-5">Reservation</dt>
+            <dd class="col-sm-7">@Model.ReservaId</dd>
+            <dt class="col-sm-5">Amount</dt>
+            <dd class="col-sm-7">ARS @Model.Amount.ToString("0.00")</dd>
+            <dt class="col-sm-5">Local payment Id</dt>
+            <dd class="col-sm-7">@Model.Id</dd>
+            <dt class="col-sm-5">Payment link</dt>
+            <dd class="col-sm-7">@(Model.PaymentLinkId ?? "not created yet")</dd>
+            <dt class="col-sm-5">Payment</dt>
+            <dd class="col-sm-7">@(Model.PadiPaymentId ?? "not reported yet")</dd>
+            <dt class="col-sm-5">Created (UTC)</dt>
+            <dd class="col-sm-7">@Model.CreatedAt.ToString("u")</dd>
+        </dl>
+        @if (!string.IsNullOrEmpty(Model.CheckoutUrl) && isPending)
+        {
+            @* New-tab handoff: explicit user click opens Padi in a NEW tab (popup-safe, no auto window.open). The Checkout POST stays in THIS tab so the 5s auto-poll below keeps running here. *@
+            <p><a class="btn btn-success btn-lg" href="@Model.CheckoutUrl" target="_blank" rel="noopener">Pay in Padi (opens new tab)</a></p>
+        }
+        else if (!string.IsNullOrEmpty(Model.CheckoutUrl))
+        {
+            <p><a href="@Model.CheckoutUrl" target="_blank" rel="noopener">Open the Padi checkout</a></p>
+        }
+        @if (!string.IsNullOrEmpty(Model.QrCodeUrl))
+        {
+            <p><img src="@Model.QrCodeUrl" alt="Payment QR code" class="img-fluid" style="max-width: 220px;" /></p>
+        }
+        @if (isPending)
+        {
+            @* Padi has no back_urls/redirect param (see PadiClient create payload), so there is no automatic return: the buyer pays in the Padi tab, comes back to this tab manually, and presses Ya pague. Local Id + PaymentLinkId above identify the row on manual return. *@
+            <p class="text-muted">After paying, return to THIS tab — we check automatically. Confirmation is polled from Padi every 5 seconds; you can also press <strong>Ya pague</strong>.</p>
+            <form asp-action="RefreshStatus" asp-route-id="@Model.Id" method="post" class="d-inline" data-poll="true">
+                <button type="submit" class="btn btn-primary">Ya pague, check status</button>
+            </form>
+            <a asp-action="Checkout" class="btn btn-secondary">New deposit</a>
+            <script>
+                // Poll-only confirmation: re-POST RefreshStatus every 5s and
+                // reload once Padi reports the payment as Approved.
+                (function () {
+                    var form = document.querySelector('form[data-poll="true"]');
+                    if (!form) return;
+                    setInterval(async function () {
+                        try {
+                            var res = await fetch(form.action, { method: 'POST', body: new FormData(form), credentials: 'same-origin' });
+                            var html = await res.text();
+                            if (html.indexOf('>Approved<') !== -1) window.location.reload();
+                        } catch (e) { /* keep polling */ }
+                    }, 5000);
+                })();
+            </script>
+        }
+        else if (isApproved)
+        {
+            <a href="/" class="btn btn-success">Back to Rueda la Bocha</a>
+        }
+        else
+        {
+            <form asp-action="RefreshStatus" asp-route-id="@Model.Id" method="post" class="d-inline">
+                <button type="submit" class="btn btn-primary">Ya pague, check status</button>
+            </form>
+            <a asp-action="Checkout" class="btn btn-secondary">New deposit</a>
+            <p class="mt-3"><a href="/">Back to Rueda la Bocha</a></p>
+        }
+    </div>
+</div>
