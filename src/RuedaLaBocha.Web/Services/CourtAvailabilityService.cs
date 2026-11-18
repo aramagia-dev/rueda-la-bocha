@@ -6,7 +6,7 @@ namespace RuedaLaBocha.Web.Services;
 
 public sealed class CourtAvailabilityService(ApplicationDbContext db)
 {
-    public async Task<List<TimeOnly>> GetAvailableStartTimesAsync(int courtId, DateOnly date)
+    public async Task<List<SlotStatus>> GetDailySlotsAsync(int courtId, DateOnly date)
     {
         var active = await db.Courts.AsNoTracking()
             .AnyAsync(court => court.Id == courtId && court.IsActive);
@@ -29,7 +29,7 @@ public sealed class CourtAvailabilityService(ApplicationDbContext db)
         var takenSet = new HashSet<TimeOnly>(taken);
 
         var duration = TimeSpan.FromMinutes(BookingPolicy.DurationMinutes);
-        var slots = new List<TimeOnly>();
+        var slots = new List<SlotStatus>();
         foreach (var schedule in schedules)
         {
             var closingTime = schedule.EndTime.ToTimeSpan();
@@ -39,10 +39,19 @@ public sealed class CourtAvailabilityService(ApplicationDbContext db)
                 var slotStart = TimeOnly.FromTimeSpan(start);
                 var slotEnd = TimeOnly.FromTimeSpan(end);
                 var blocked = closures.Any(closure => closure.StartTime < slotEnd && closure.EndTime > slotStart);
-                if (!blocked && !takenSet.Contains(slotStart)) slots.Add(slotStart);
+                var state = blocked ? SlotState.Blocked
+                    : takenSet.Contains(slotStart) ? SlotState.Taken
+                    : SlotState.Free;
+                slots.Add(new SlotStatus(slotStart, slotEnd, state));
             }
         }
 
         return slots;
     }
+
+    public async Task<List<TimeOnly>> GetAvailableStartTimesAsync(int courtId, DateOnly date) =>
+        (await GetDailySlotsAsync(courtId, date))
+            .Where(slot => slot.State == SlotState.Free)
+            .Select(slot => slot.Start)
+            .ToList();
 }

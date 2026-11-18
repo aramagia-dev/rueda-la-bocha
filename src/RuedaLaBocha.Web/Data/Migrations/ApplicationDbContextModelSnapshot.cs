@@ -234,6 +234,9 @@ namespace RuedaLaBocha.Web.Data.Migrations
                     b.Property<TimeOnly>("EndTime")
                         .HasColumnType("TEXT");
 
+                    b.Property<Guid?>("GroupId")
+                        .HasColumnType("TEXT");
+
                     b.Property<decimal>("PriceArs")
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
@@ -381,6 +384,33 @@ namespace RuedaLaBocha.Web.Data.Migrations
                         .IsUnique();
 
                     b.ToTable("Payments");
+                });
+
+            modelBuilder.Entity("RuedaLaBocha.Web.Models.Promo", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("EndDay")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("MinHours")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("StartDay")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<decimal>("TotalPrice")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("Promos");
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<string>", b =>

@@ -18,10 +18,11 @@ else
         {
             <li class="list-group-item">
                 <strong>@booking.Date.ToString("dd/MM/yyyy") @booking.StartTime.ToString("HH:mm") - @booking.EndTime.ToString("HH:mm")</strong>
-                <span class="text-muted">@booking.Court.Name · @BookingPolicy.PriceDisplay · @booking.Status</span>
+                <span class="text-muted">@booking.Court.Name · ARS @booking.PriceArs.ToString("N0", System.Globalization.CultureInfo.GetCultureInfo("es-AR")) · @booking.Status</span>
                 <a asp-action="Detail" asp-route-id="@booking.Id">Ver detalle</a>
                 @if (booking.Status == BookingStatus.Active)
                 {
+                    <a asp-controller="Payments" asp-action="Checkout" asp-route-reservaId="@booking.Id" class="btn btn-success btn-sm ms-2">Pagar seña</a>
                     <form method="post" asp-action="Cancel" asp-route-id="@booking.Id" class="d-inline">
                         <button class="btn btn-link" type="submit">Cancelar reserva</button>
                     </form>

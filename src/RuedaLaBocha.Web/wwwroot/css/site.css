@@ -125,3 +125,16 @@ img { max-width: 100%; }
   .section-block, .page-section { padding-block: 2.5rem; }
   .court-form-panel { padding: 1.25rem; }
 }
+.slot-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: .75rem; }
+.slot { border: 1px solid var(--line); border-radius: 12px; padding: .75rem 1rem; background: #fff; display: flex; flex-direction: column; gap: .25rem; }
+.slot-time { font-weight: 700; }
+.slot-state { font-size: .8rem; font-weight: 650; text-transform: uppercase; letter-spacing: .04em; }
+.slot-price { font-size: .85rem; color: var(--muted); }
+.slot-free { border-left: 6px solid var(--green); }
+.slot-free .slot-state { color: var(--green); }
+.slot-taken { border-left: 6px solid #b7791f; background: #fdf6e7; }
+.slot-taken .slot-state { color: #8a5a12; }
+.slot-blocked { border-left: 6px solid #b3261e; background: #fbecea; }
+.slot-blocked .slot-state { color: #8f1d17; }
+.slot-legend { display: flex; gap: 1rem; }
+.legend-box { display: inline-block; width: 1rem; height: 1rem; border-radius: 4px; margin-right: .35rem; vertical-align: baseline; }

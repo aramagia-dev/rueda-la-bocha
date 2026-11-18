@@ -17,6 +17,8 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
     public DbSet<Booking> Bookings => Set<Booking>();
 
+    public DbSet<Promo> Promos => Set<Promo>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);

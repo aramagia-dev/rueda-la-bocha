@@ -49,6 +49,62 @@ public sealed class CourtScheduleService(ApplicationDbContext db)
         return true;
     }
 
+    public async Task<int> ApplyWeeklyTemplateAsync(int courtId,
+        IEnumerable<DayOfWeek>? days = null,
+        IEnumerable<(TimeOnly Start, TimeOnly End)>? intervals = null,
+        bool replace = false)
+    {
+        // Default template: Mon-Fri, 08:00-13:00 and 16:00-23:00.
+        // The requested 16-24 maps to 16:00-23:00 because TimeOnly stays
+        // within the same day and slots are fixed 1h blocks.
+        days ??= [DayOfWeek.Monday, DayOfWeek.Tuesday, DayOfWeek.Wednesday, DayOfWeek.Thursday, DayOfWeek.Friday];
+        intervals ??= [(new TimeOnly(8, 0), new TimeOnly(13, 0)), (new TimeOnly(16, 0), new TimeOnly(23, 0))];
+
+        await EnsureCourtExistsAsync(courtId);
+        var dayList = days.Distinct().ToList();
+        var intervalList = intervals.ToList();
+        foreach (var (start, end) in intervalList)
+            ValidateRange(start, end);
+        foreach (var day in dayList)
+            if (!Enum.IsDefined(typeof(DayOfWeek), day))
+                throw new ArgumentOutOfRangeException(nameof(days));
+
+        if (!replace)
+        {
+            foreach (var day in dayList)
+                foreach (var (start, end) in intervalList)
+                    if (await ScheduleOverlapsAsync(courtId, day, start, end))
+                        throw new InvalidOperationException("The schedule overlaps an existing interval.");
+        }
+
+        await using var transaction = await db.Database.BeginTransactionAsync();
+        try
+        {
+            if (replace)
+                await db.CourtSchedules.Where(schedule => schedule.CourtId == courtId).ExecuteDeleteAsync();
+
+            foreach (var day in dayList)
+                foreach (var (start, end) in intervalList)
+                    db.CourtSchedules.Add(new CourtSchedule
+                    {
+                        CourtId = courtId,
+                        DayOfWeek = day,
+                        StartTime = start,
+                        EndTime = end
+                    });
+
+            await db.SaveChangesAsync();
+            await transaction.CommitAsync();
+        }
+        catch
+        {
+            await transaction.RollbackAsync();
+            throw;
+        }
+
+        return dayList.Count * intervalList.Count;
+    }
+
     public async Task<bool> DeleteScheduleAsync(int scheduleId)
     {
         var schedule = await db.CourtSchedules.SingleOrDefaultAsync(item => item.Id == scheduleId);

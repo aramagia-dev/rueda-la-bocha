@@ -34,7 +34,12 @@ public class PaymentsController : Controller
 
     [Authorize]
     [HttpGet]
-    public IActionResult Checkout() => View();
+    public IActionResult Checkout(string? reservaId, decimal? amount)
+    {
+        ViewData["ReservaId"] = reservaId?.Trim();
+        ViewData["Amount"] = amount is > 0 ? Math.Round(amount.Value, 2) : null;
+        return View();
+    }
 
     // Starts the Padi flow: persists the Pending row FIRST (the order<->link
     // mapping lives in our db), then creates a SingleUse link and returns the
@@ -61,7 +66,7 @@ public class PaymentsController : Controller
         if (amount < MinimumAmount)
         {
             TempData["Error"] = $"The minimum deposit is ARS {MinimumAmount:0}.";
-            return RedirectToAction(nameof(Checkout));
+            return RedirectToAction(nameof(Checkout), new { reservaId = reservaId.Trim() });
         }
 
         var payment = new Payment

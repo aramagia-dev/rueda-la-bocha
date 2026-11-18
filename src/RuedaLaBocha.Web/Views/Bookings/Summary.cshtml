@@ -1,0 +1,37 @@
+@model BookingSummaryViewModel
+@{
+    ViewData["Title"] = "Confirmar reserva";
+    var culture = System.Globalization.CultureInfo.GetCultureInfo("es-AR");
+}
+<div class="page-heading"><p class="eyebrow">RESERVAS</p><h1>Revisá tu reserva</h1><p class="text-muted">Este es el detalle previo al pago. Todavía no se creó ninguna reserva.</p></div>
+<dl class="management-panel p-4 mb-4">
+    <dt>Cancha</dt><dd>@Model.Court.Name (@Model.Court.Description)</dd>
+    <dt>Fecha</dt><dd>@Model.Date.ToString("dd/MM/yyyy")</dd>
+    <dt>Horarios elegidos</dt>
+    <dd>
+        <ul class="mb-0">
+            @for (var i = 0; i < Model.Starts.Count; i++)
+            {
+                <li>@Model.Starts[i].ToString("HH:mm") - @Model.Ends[i].ToString("HH:mm")</li>
+            }
+        </ul>
+    </dd>
+    <dt>Total</dt>
+    <dd>
+        ARS @Model.Total.ToString("N0", culture)
+        @if (Model.IsPromo)
+        { <span class="badge bg-success ms-2">Promo Lun-Jue 3 h: ARS 45.000 total</span> }
+    </dd>
+</dl>
+<div class="d-flex gap-2 mb-3">
+    <form method="post" asp-action="Confirm" class="d-inline">
+        <input type="hidden" name="courtId" value="@Model.Court.Id" />
+        <input type="hidden" name="date" value="@Model.Date.ToString("yyyy-MM-dd")" />
+        <input type="hidden" name="startTime" value="@Model.Starts[0].ToString("HH:mm")" />
+        <input type="hidden" name="hours" value="@Model.Hours" />
+        <button class="btn btn-success" type="submit">Realizar pago</button>
+    </form>
+    <button class="btn btn-outline-secondary" type="button" disabled title="Próximamente">Efectivo en complejo (próximamente)</button>
+</div>
+<p class="text-muted">Al realizar el pago se crean las reservas y pasás al checkout de Padi con el total.</p>
+<a asp-controller="Availability" asp-action="Index" asp-route-courtId="@Model.Court.Id" asp-route-date="@Model.Date.ToString("yyyy-MM-dd")">Volver a elegir horarios</a>
